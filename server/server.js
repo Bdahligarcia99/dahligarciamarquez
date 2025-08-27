@@ -1,68 +1,44 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import helmet from 'helmet'
-import morgan from 'morgan'
-import dotenv from 'dotenv'
-import postsRouter from './routes/posts.js'
-
-// Load environment variables
-dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 8080
+
+// CORS configuration with allowlist
+const corsOptions = {
+  origin: [
+    process.env.CORS_ORIGIN, // Custom domain (set later)
+    'http://localhost:5173', // Vite dev server
+    /.*\.vercel\.app$/ // Vercel preview deploys
+  ].filter(Boolean), // Remove undefined values
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials: true
+}
 
 // Middleware
-app.use(helmet())
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  credentials: true
-}))
-app.use(morgan('combined'))
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(cors(corsOptions))
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 
 // Health check endpoint
-app.get('/health', (_req, res) => res.json({ ok: true }))
-
-// API routes
-app.use('/api/posts', postsRouter)
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Storytelling Website API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/health',
-      posts: '/api/posts',
-      singlePost: '/api/posts/:slug'
-    }
+app.get('/healthz', (req, res) => {
+  res.json({ 
+    ok: true, 
+    uptime: process.uptime() 
   })
 })
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.originalUrl} not found`
-  })
-})
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Global error handler:', err)
-  
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+// Test route
+app.get('/api/hello', (req, res) => {
+  res.json({ 
+    message: "Hello from Render Express API!" 
   })
 })
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`)
-  console.log(`📖 API Documentation available at http://localhost:${PORT}`)
-  console.log(`🏥 Health check available at http://localhost:${PORT}/health`)
+  console.log(`🏥 Health check: http://localhost:${PORT}/healthz`)
+  console.log(`📡 Test endpoint: http://localhost:${PORT}/api/hello`)
 })
-
