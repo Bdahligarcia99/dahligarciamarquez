@@ -69,8 +69,7 @@ The app includes a built-in API test section on the home page that:
 
 3. **Set environment variables** in Vercel dashboard:
    - Go to Project Settings → Environment Variables
-   - Add `VITE_API_URL` for both **Preview** and **Production**
-   - Example: `https://your-backend.onrender.com`
+   - Add `VITE_API_URL=https://api.dahligarciamarquez.com` for both **Preview** and **Production**
 
 4. **Deploy**
    - Vercel will automatically build and deploy your app
@@ -80,7 +79,7 @@ The app includes a built-in API test section on the home page that:
 
 | Variable | Preview | Production | Example |
 |----------|---------|------------|---------|
-| `VITE_API_URL` | `https://your-backend.onrender.com` | `https://your-backend.onrender.com` | Backend API URL |
+| `VITE_API_URL` | `https://api.dahligarciamarquez.com` | `https://api.dahligarciamarquez.com` | Backend API URL |
 
 ## 🔧 SPA Routing
 

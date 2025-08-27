@@ -1,7 +1,7 @@
 // client/src/App.jsx
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { api } from './lib/api'
+import { api, getApiBase } from './lib/api'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import BlogList from './pages/BlogList'
@@ -41,7 +41,7 @@ function App() {
             <div className="bg-white p-4 rounded-lg shadow-sm">
               <h3 className="text-lg font-semibold mb-2">API Configuration</h3>
               <p className="text-sm text-gray-600 mb-3">
-                <strong>VITE_API_URL:</strong> {import.meta.env.VITE_API_URL || 'Not set'}
+                <strong>VITE_API_URL:</strong> {getApiBase() || 'Not set'}
               </p>
               
               <button
@@ -49,7 +49,7 @@ function App() {
                 disabled={loading}
                 className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {loading ? 'Testing...' : 'Test API Connection'}
+                {loading ? 'Testing...' : 'Ping API'}
               </button>
               
               {apiResponse && (
