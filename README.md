@@ -177,6 +177,21 @@ Create `client/.env` for any frontend environment variables:
 VITE_API_URL=https://your-api-domain.onrender.com/api
 ```
 
+### Render Deployment Variables
+
+**Backend (Web Service):**
+```
+NODE_VERSION=18
+CORS_ORIGIN=https://<your-frontend>.onrender.com
+DATABASE_URL=<your-render-postgres-url>
+```
+
+**Frontend (Static Site):**
+```
+NODE_VERSION=18
+VITE_API_URL=https://<your-backend>.onrender.com
+```
+
 ## 📝 Features
 
 - ✅ Responsive design with TailwindCSS
