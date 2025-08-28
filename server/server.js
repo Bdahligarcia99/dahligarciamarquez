@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 8080
 // Request logging middleware (before CORS/body-parsing)
 app.use((req, res, next) => {
   // Skip logging for common routes that would clutter logs
-  if (['/healthz', '/favicon.ico', '/'].includes(req.path)) return next();
+  if (['/healthz', '/favicon.ico'].includes(req.path)) return next();
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
@@ -90,7 +90,14 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   const message = status === 500 ? 'Internal Server Error' : (err.message || 'Error');
-  console.error(err.stack || err);
+  
+  // Log server errors (5xx) with stack traces, client errors (4xx) as warnings
+  if (status >= 500) {
+    console.error(err.stack || err);
+  } else {
+    console.warn(`${req.method} ${req.originalUrl} -> ${status} ${message}`);
+  }
+  
   res.status(status).json({ error: message });
 });
 
