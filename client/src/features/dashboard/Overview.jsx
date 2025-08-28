@@ -1,8 +1,10 @@
 // client/src/features/dashboard/Overview.jsx
 import { useState, useEffect } from 'react'
 import { apiGet, apiAdminGet } from '../../lib/api'
+import { isHTTPError } from '../../lib/httpErrors'
 import KpiCard from './components/KpiCard'
 import StatusBadge from './components/StatusBadge'
+import AdminTokenControls from './components/AdminTokenControls'
 
 const Overview = () => {
   const [posts, setPosts] = useState([])
@@ -120,7 +122,30 @@ const Overview = () => {
           {loading ? (
             <div className="text-gray-500">Loading posts...</div>
           ) : error ? (
-            <div className="text-red-500">Error loading posts: {error}</div>
+            <>
+              {isHTTPError(error, 500) ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded">
+                  <h3 className="font-medium text-red-800 mb-2">Admin token not configured on server</h3>
+                  <p className="text-sm text-red-700 mb-2">
+                    Set <code className="bg-red-100 px-1 rounded">ADMIN_TOKEN</code> in your server environment and redeploy (Clear build cache).
+                  </p>
+                  <AdminTokenControls onAfter={fetchData} />
+                </div>
+              ) : isHTTPError(error, 401) ? (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
+                  <h3 className="font-medium text-yellow-800 mb-2">Admin access required</h3>
+                  <p className="text-sm text-yellow-700 mb-2">
+                    Your browser session has no admin token or it's invalid.
+                  </p>
+                  <AdminTokenControls onAfter={fetchData} />
+                </div>
+              ) : (
+                <div className="p-4 bg-red-50 border border-red-200 rounded">
+                  <h3 className="font-medium text-red-800 mb-2">Failed to load posts</h3>
+                  <pre className="text-sm text-red-700">{String(error)}</pre>
+                </div>
+              )}
+            </>
           ) : recentPosts.length === 0 ? (
             <div className="text-gray-500">No posts found</div>
           ) : (

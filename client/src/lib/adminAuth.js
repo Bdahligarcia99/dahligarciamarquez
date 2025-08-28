@@ -12,6 +12,11 @@ export function ensureAdminToken() {
   return adminToken;
 }
 
+export function clearAdminToken() {
+  adminToken = null;
+  sessionStorage.removeItem("ADMIN_TOKEN");
+}
+
 export function adminHeaders() {
   const t = adminToken ?? sessionStorage.getItem("ADMIN_TOKEN");
   return t ? { Authorization: `Bearer ${t}` } : {};
