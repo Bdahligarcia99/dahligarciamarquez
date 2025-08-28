@@ -1,82 +1,64 @@
-import { Link, useLocation } from 'react-router-dom'
+// client/src/components/Navbar.jsx
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink } from "react-router-dom";
+import "../styles/nav.css";
 
-const Navbar = () => {
-  const location = useLocation()
+export default function Navbar() {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
 
-  const isActive = (path) => {
-    return location.pathname === path
-  }
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target)) setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const onNav = () => setOpen(false);
 
   return (
-    <nav className="bg-white shadow-sm border-b border-secondary-200 sticky top-0 z-50">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo/Brand */}
-          <Link 
-            to="/" 
-            className="text-xl font-serif font-bold text-secondary-900 hover:text-primary-600 transition-colors"
-          >
-            My Stories
-          </Link>
+    <header className="nav-root" ref={menuRef}>
+      <div className="nav-bar container">
+        <Link to="/" className="brand">My Stories</Link>
 
-          {/* Navigation Links */}
-          <div className="flex space-x-8">
-            <Link
-              to="/"
-              className={`font-medium transition-colors ${
-                isActive('/') 
-                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              Home
-            </Link>
-            <Link
-              to="/stories"
-              className={`font-medium transition-colors ${
-                isActive('/stories') || location.pathname.startsWith('/stories/') 
-                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              Stories
-            </Link>
-            <Link
-              to="/posts"
-              className={`font-medium transition-colors ${
-                isActive('/posts') 
-                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              Posts
-            </Link>
-            <Link
-              to="/blog"
-              className={`font-medium transition-colors ${
-                isActive('/blog') || location.pathname.startsWith('/blog/') 
-                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              Blog
-            </Link>
-            <Link
-              to="/dashboard"
-              className={`font-medium transition-colors ${
-                isActive('/dashboard') || location.pathname.startsWith('/dashboard/') 
-                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              Dashboard
-            </Link>
-          </div>
-        </div>
+        <nav className="links-desktop" aria-label="Primary">
+          <NavLink to="/" className="link">Home</NavLink>
+          <NavLink to="/stories" className="link">Stories</NavLink>
+          <NavLink to="/blog" className="link">Blog</NavLink>
+          <NavLink to="/dashboard" className="link">Dashboard</NavLink>
+        </nav>
+
+        <button
+          className="hamburger"
+          aria-label="Menu"
+          aria-expanded={open}
+          aria-controls="mobile-menu"
+          onClick={() => setOpen(v => !v)}
+        >
+          <span className="hamburger-lines" />
+        </button>
       </div>
-    </nav>
-  )
+
+      <nav
+        id="mobile-menu"
+        className={`panel ${open ? "open" : ""}`}
+        aria-hidden={!open}
+        aria-label="Primary"
+      >
+        <NavLink to="/" className="panel-link" onClick={onNav}>Home</NavLink>
+        <NavLink to="/stories" className="panel-link" onClick={onNav}>Stories</NavLink>
+        <NavLink to="/blog" className="panel-link" onClick={onNav}>Blog</NavLink>
+        <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>
+      </nav>
+    </header>
+  );
 }
-
-export default Navbar
-

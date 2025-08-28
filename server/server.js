@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { initDb, q, closeDb } from './db.js'
+import { requireAdmin } from './middleware/requireAdmin.js'
 
 const app = express()
 const PORT = process.env.PORT || 8080
@@ -90,8 +91,8 @@ app.get('/api/db/now', async (req, res, next) => {
   }
 })
 
-// Get all posts with filtering and pagination
-app.get('/api/posts', async (req, res, next) => {
+// Get all posts with filtering and pagination (admin only)
+app.get('/api/posts', requireAdmin, async (req, res, next) => {
   try {
     const { q: searchQuery = '', status, page = '1', limit = '20' } = req.query
     const p = Math.max(1, parseInt(page))
@@ -129,8 +130,8 @@ app.get('/api/posts', async (req, res, next) => {
   }
 })
 
-// Get single post by ID
-app.get('/api/posts/:id', async (req, res, next) => {
+// Get single post by ID (admin only)
+app.get('/api/posts/:id', requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params
     const result = await q('SELECT * FROM posts WHERE id = $1', [id])
@@ -147,8 +148,8 @@ app.get('/api/posts/:id', async (req, res, next) => {
   }
 })
 
-// Create new post
-app.post('/api/posts', async (req, res, next) => {
+// Create new post (admin only)
+app.post('/api/posts', requireAdmin, async (req, res, next) => {
   try {
     const { title, body, status = 'published' } = req.body
     
@@ -182,8 +183,8 @@ app.post('/api/posts', async (req, res, next) => {
   }
 })
 
-// Update post (partial)
-app.patch('/api/posts/:id', async (req, res, next) => {
+// Update post (partial) (admin only)
+app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
   try {
     const { title, body, status } = req.body || {}
     const updates = []
@@ -235,8 +236,8 @@ app.patch('/api/posts/:id', async (req, res, next) => {
   }
 })
 
-// Delete post
-app.delete('/api/posts/:id', async (req, res, next) => {
+// Delete post (admin only)
+app.delete('/api/posts/:id', requireAdmin, async (req, res, next) => {
   try {
     const { rowCount } = await q('DELETE FROM posts WHERE id = $1', [req.params.id])
     

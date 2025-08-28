@@ -73,6 +73,72 @@ export async function apiDelete(path) {
   return res.json();
 }
 
+// Admin API helpers
+import { adminHeaders } from './adminAuth';
+
+export async function apiAdminGet(path) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { ...adminHeaders() }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GET ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function apiAdminPost(path, body) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...adminHeaders()
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`POST ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function apiAdminPatch(path, body) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...adminHeaders()
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PATCH ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function apiAdminDelete(path) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'DELETE',
+    headers: { ...adminHeaders() }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`DELETE ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json();
+}
+
 // Legacy API helper (keep for backward compatibility)
 export async function api(path, init) {
   const res = await fetch(`${API_URL}${path}`, { ...init });

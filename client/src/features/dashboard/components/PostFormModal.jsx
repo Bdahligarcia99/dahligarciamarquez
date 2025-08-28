@@ -1,6 +1,6 @@
 // client/src/features/dashboard/components/PostFormModal.jsx
 import { useState, useEffect } from 'react'
-import { apiPost, apiPatch } from '../../../lib/api'
+import { apiAdminPost, apiAdminPatch } from '../../../lib/api'
 
 const PostFormModal = ({ isOpen, onClose, onSuccess, editPost = null }) => {
   const [title, setTitle] = useState('')
@@ -33,9 +33,9 @@ const PostFormModal = ({ isOpen, onClose, onSuccess, editPost = null }) => {
       let result
 
       if (isEditing) {
-        result = await apiPatch(`/api/posts/${editPost.id}`, postData)
+        result = await apiAdminPatch(`/api/posts/${editPost.id}`, postData)
       } else {
-        result = await apiPost('/api/posts', postData)
+        result = await apiAdminPost('/api/posts', postData)
       }
 
       onSuccess(result)

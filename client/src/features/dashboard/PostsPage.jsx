@@ -1,6 +1,6 @@
 // client/src/features/dashboard/PostsPage.jsx
 import { useState, useEffect } from 'react'
-import { apiGet, apiDelete } from '../../lib/api'
+import { apiAdminGet, apiAdminDelete } from '../../lib/api'
 import PostFormModal from './components/PostFormModal'
 import StatusBadge from './components/StatusBadge'
 
@@ -35,7 +35,7 @@ const PostsPage = () => {
     try {
       setLoading(true)
       setError(null)
-      const postsData = await apiGet('/api/posts')
+      const postsData = await apiAdminGet('/api/posts')
       // Handle both old format (array) and new format (object with items)
       setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
     } catch (err) {
@@ -63,7 +63,7 @@ const PostsPage = () => {
 
     try {
       setDeletingId(postId)
-      await apiDelete(`/api/posts/${postId}`)
+      await apiAdminDelete(`/api/posts/${postId}`)
       
       // Optimistic update
       setPosts(prev => prev.filter(post => post.id !== postId))

@@ -1,6 +1,6 @@
 // client/src/features/dashboard/Overview.jsx
 import { useState, useEffect } from 'react'
-import { apiGet } from '../../lib/api'
+import { apiGet, apiAdminGet } from '../../lib/api'
 import KpiCard from './components/KpiCard'
 import StatusBadge from './components/StatusBadge'
 
@@ -21,7 +21,7 @@ const Overview = () => {
     try {
       setLoading(true)
       setError(null)
-      const postsData = await apiGet('/api/posts')
+      const postsData = await apiAdminGet('/api/posts')
       // Handle both old format (array) and new format (object with items)
       setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
     } catch (err) {
