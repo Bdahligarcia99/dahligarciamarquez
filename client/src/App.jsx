@@ -69,6 +69,13 @@ function App() {
         </div>
 
         <main className="container mx-auto px-4 py-8 max-w-6xl">
+          {/* API Debug Info */}
+          <div className="mb-4">
+            <small className="text-gray-500">
+              Backend: {getApiBase() || 'Not configured'}
+            </small>
+          </div>
+          
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/posts" element={<Posts />} />

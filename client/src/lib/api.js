@@ -15,7 +15,7 @@ export async function apiGet(path) {
   const res = await fetch(`${API_URL}${path}`);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    throw new Error(`GET ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
   }
   return res.json();
 }
@@ -31,7 +31,7 @@ export async function apiPost(path, body) {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    throw new Error(`POST ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
   }
   return res.json();
 }
