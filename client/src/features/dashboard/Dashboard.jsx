@@ -1,6 +1,7 @@
 // client/src/features/dashboard/Dashboard.jsx
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import ErrorBoundary from '../../components/ErrorBoundary'
 import Overview from './Overview'
 import PostsPage from './PostsPage'
 import SettingsPage from './SettingsPage'
@@ -46,11 +47,15 @@ const Dashboard = () => {
 
         {/* Main Content */}
         <div className="flex-1 p-8">
-          <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/posts" element={<PostsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<div style={{padding: 16}}>Loading...</div>}>
+              <Routes>
+                <Route index element={<Overview />} />
+                <Route path="posts" element={<PostsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
     </div>

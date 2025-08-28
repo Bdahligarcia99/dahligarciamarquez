@@ -20,9 +20,12 @@ const Overview = () => {
   const fetchData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const postsData = await apiGet('/api/posts')
-      setPosts(postsData)
+      // Handle both old format (array) and new format (object with items)
+      setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
     } catch (err) {
+      console.error('Failed to fetch posts:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -35,6 +38,7 @@ const Overview = () => {
       const healthData = await apiGet('/healthz')
       setHealth(healthData)
     } catch (err) {
+      console.error('Health check failed:', err)
       setHealth({ ok: false, error: err.message })
     } finally {
       setHealthLoading(false)
@@ -47,6 +51,7 @@ const Overview = () => {
       const dbData = await apiGet('/api/db/now')
       setDbNow(dbData)
     } catch (err) {
+      console.error('Database check failed:', err)
       setDbNow({ error: err.message })
     } finally {
       setDbLoading(false)

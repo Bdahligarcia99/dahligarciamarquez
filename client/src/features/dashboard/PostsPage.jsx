@@ -34,9 +34,12 @@ const PostsPage = () => {
   const fetchPosts = async () => {
     try {
       setLoading(true)
+      setError(null)
       const postsData = await apiGet('/api/posts')
-      setPosts(postsData)
+      // Handle both old format (array) and new format (object with items)
+      setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
     } catch (err) {
+      console.error('Failed to fetch posts:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -65,6 +68,7 @@ const PostsPage = () => {
       // Optimistic update
       setPosts(prev => prev.filter(post => post.id !== postId))
     } catch (err) {
+      console.error('Failed to delete post:', err)
       alert(`Failed to delete post: ${err.message}`)
     } finally {
       setDeletingId(null)

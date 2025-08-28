@@ -1,10 +1,11 @@
 // client/src/lib/api.js
-export const API_URL = import.meta.env.VITE_API_URL;
 
-// Throw helpful error if API_URL is missing
-if (!API_URL) {
-  throw new Error('VITE_API_URL environment variable is required but not set. Please set it in your .env.local file or Vercel environment variables.');
-}
+// Safe API configuration - don't crash on import if missing
+export const API_MISCONFIGURED = !import.meta.env.VITE_API_URL;
+export const API_URL = import.meta.env.VITE_API_URL || '';
+
+const getMisconfigError = () => 
+  new Error('VITE_API_URL is not set. Check Vercel env vars.');
 
 export function getApiBase() { 
   return API_URL; 
@@ -12,6 +13,8 @@ export function getApiBase() {
 
 // Generic GET helper
 export async function apiGet(path) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
   const res = await fetch(`${API_URL}${path}`);
   if (!res.ok) {
     const text = await res.text();
@@ -22,6 +25,8 @@ export async function apiGet(path) {
 
 // Generic POST helper
 export async function apiPost(path, body) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: {
@@ -38,6 +43,8 @@ export async function apiPost(path, body) {
 
 // Generic PATCH helper
 export async function apiPatch(path, body) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
   const res = await fetch(`${API_URL}${path}`, {
     method: 'PATCH',
     headers: {
@@ -54,6 +61,8 @@ export async function apiPatch(path, body) {
 
 // Generic DELETE helper
 export async function apiDelete(path) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
   const res = await fetch(`${API_URL}${path}`, {
     method: 'DELETE',
   });

@@ -10,7 +10,7 @@ import BlogList from './pages/BlogList'
 import BlogPost from './pages/BlogPost'
 import StoriesPage from './pages/StoriesPage'
 import StoryDetail from './pages/StoryDetail'
-import NotFound from './pages/NotFound'
+import NotFound from './components/NotFound'
 
 function App() {
   const [apiResponse, setApiResponse] = useState(null)
