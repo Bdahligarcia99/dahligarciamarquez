@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { api, getApiBase } from './lib/api'
+import Posts from './features/posts/Posts'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import BlogList from './pages/BlogList'
@@ -70,6 +71,7 @@ function App() {
         <main className="container mx-auto px-4 py-8 max-w-6xl">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/posts" element={<Posts />} />
             <Route path="/blog" element={<BlogList />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/stories" element={<StoriesPage />} />

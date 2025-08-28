@@ -42,6 +42,16 @@ const Navbar = () => {
               Stories
             </Link>
             <Link
+              to="/posts"
+              className={`font-medium transition-colors ${
+                isActive('/posts') 
+                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              Posts
+            </Link>
+            <Link
               to="/blog"
               className={`font-medium transition-colors ${
                 isActive('/blog') || location.pathname.startsWith('/blog/') 
