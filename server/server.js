@@ -5,6 +5,17 @@ import cors from 'cors'
 const app = express()
 const PORT = process.env.PORT || 8080
 
+// Request logging middleware (before CORS/body-parsing)
+app.use((req, res, next) => {
+  if (req.path === '/healthz') return next();
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
+  });
+  next();
+});
+
 // Environment-driven CORS configuration with wildcard support
 const toMatcher = (s) => {
   const v = s.trim();
@@ -57,6 +68,21 @@ app.get('/api/hello', (req, res) => {
     message: "Hello from Render Express API!" 
   })
 })
+
+// 404 handler - convert unmatched routes to a 404 error
+app.use((req, res, next) => {
+  const err = new Error('Not Found');
+  err.status = 404;
+  next(err);
+});
+
+// Central JSON error handler
+app.use((err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  const message = status === 500 ? 'Internal Server Error' : (err.message || 'Error');
+  console.error(err.stack || err);
+  res.status(status).json({ error: message });
+});
 
 // Start server
 app.listen(PORT, () => {
