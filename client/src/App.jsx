@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { api, getApiBase } from './lib/api'
 import Posts from './features/posts/Posts'
+import Dashboard from './features/dashboard/Dashboard'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import BlogList from './pages/BlogList'
@@ -79,6 +80,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/posts" element={<Posts />} />
+            <Route path="/dashboard/*" element={<Dashboard />} />
             <Route path="/blog" element={<BlogList />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/stories" element={<StoriesPage />} />

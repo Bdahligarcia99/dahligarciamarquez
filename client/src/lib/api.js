@@ -36,6 +36,34 @@ export async function apiPost(path, body) {
   return res.json();
 }
 
+// Generic PATCH helper
+export async function apiPatch(path, body) {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PATCH ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json();
+}
+
+// Generic DELETE helper
+export async function apiDelete(path) {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`DELETE ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json();
+}
+
 // Legacy API helper (keep for backward compatibility)
 export async function api(path, init) {
   const res = await fetch(`${API_URL}${path}`, { ...init });

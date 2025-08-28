@@ -90,11 +90,40 @@ app.get('/api/db/now', async (req, res, next) => {
   }
 })
 
-// Get all posts
+// Get all posts with filtering and pagination
 app.get('/api/posts', async (req, res, next) => {
   try {
-    const result = await q('SELECT * FROM posts ORDER BY created_at DESC LIMIT 50')
-    res.json(result.rows)
+    const { q: searchQuery = '', status, page = '1', limit = '20' } = req.query
+    const p = Math.max(1, parseInt(page))
+    const l = Math.min(100, Math.max(1, parseInt(limit)))
+    const offset = (p - 1) * l
+    
+    const params = []
+    const whereConditions = []
+    
+    // Text search on title OR body (case-insensitive)
+    if (searchQuery) {
+      params.push(`%${searchQuery}%`)
+      whereConditions.push(`(title ILIKE $${params.length} OR body ILIKE $${params.length})`)
+    }
+    
+    // Status filter
+    if (status) {
+      params.push(status)
+      whereConditions.push(`status = $${params.length}`)
+    }
+    
+    const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : ''
+    
+    // Get paginated items
+    const itemsQuery = `SELECT * FROM posts ${whereClause} ORDER BY created_at DESC LIMIT ${l} OFFSET ${offset}`
+    const { rows: items } = await q(itemsQuery, params)
+    
+    // Get total count for same filters
+    const countQuery = `SELECT COUNT(*)::int as total FROM posts ${whereClause}`
+    const { rows: [{ total }] } = await q(countQuery, params)
+    
+    res.json({ items, page: p, limit: l, total })
   } catch (error) {
     next(error)
   }
@@ -121,7 +150,7 @@ app.get('/api/posts/:id', async (req, res, next) => {
 // Create new post
 app.post('/api/posts', async (req, res, next) => {
   try {
-    const { title, body } = req.body
+    const { title, body, status = 'published' } = req.body
     
     // Validation
     if (!title || !body) {
@@ -136,12 +165,88 @@ app.post('/api/posts', async (req, res, next) => {
       return next(err)
     }
     
+    if (status && !['draft', 'published'].includes(status)) {
+      const err = new Error('Status must be "draft" or "published"')
+      err.status = 400
+      return next(err)
+    }
+    
     const result = await q(
-      'INSERT INTO posts (title, body) VALUES ($1, $2) RETURNING *',
-      [title.trim(), body.trim()]
+      'INSERT INTO posts (title, body, status) VALUES ($1, $2, $3) RETURNING *',
+      [title.trim(), body.trim(), status]
     )
     
     res.status(201).json(result.rows[0])
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update post (partial)
+app.patch('/api/posts/:id', async (req, res, next) => {
+  try {
+    const { title, body, status } = req.body || {}
+    const updates = []
+    const params = []
+    
+    // Build dynamic update query
+    if (title !== undefined) {
+      params.push(title)
+      updates.push(`title = $${params.length}`)
+    }
+    if (body !== undefined) {
+      params.push(body)
+      updates.push(`body = $${params.length}`)
+    }
+    if (status !== undefined) {
+      if (!['draft', 'published'].includes(status)) {
+        const err = new Error('Status must be "draft" or "published"')
+        err.status = 400
+        return next(err)
+      }
+      params.push(status)
+      updates.push(`status = $${params.length}`)
+    }
+    
+    // Validate at least one field is being updated
+    if (!updates.length) {
+      const err = new Error('At least one field (title, body, or status) must be provided')
+      err.status = 400
+      return next(err)
+    }
+    
+    // Add the ID parameter
+    params.push(req.params.id)
+    
+    const { rows } = await q(
+      `UPDATE posts SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`,
+      params
+    )
+    
+    if (!rows.length) {
+      const err = new Error('Post not found')
+      err.status = 404
+      return next(err)
+    }
+    
+    res.json(rows[0])
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Delete post
+app.delete('/api/posts/:id', async (req, res, next) => {
+  try {
+    const { rowCount } = await q('DELETE FROM posts WHERE id = $1', [req.params.id])
+    
+    if (!rowCount) {
+      const err = new Error('Post not found')
+      err.status = 404
+      return next(err)
+    }
+    
+    res.json({ deleted: true })
   } catch (error) {
     next(error)
   }

@@ -61,6 +61,16 @@ const Navbar = () => {
             >
               Blog
             </Link>
+            <Link
+              to="/dashboard"
+              className={`font-medium transition-colors ${
+                isActive('/dashboard') || location.pathname.startsWith('/dashboard/') 
+                  ? 'text-primary-600 border-b-2 border-primary-600 pb-1' 
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              Dashboard
+            </Link>
           </div>
         </div>
       </div>

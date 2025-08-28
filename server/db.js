@@ -38,6 +38,19 @@ export async function initDb() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
+    
+    // Add status column if it doesn't exist
+    await q(`
+      ALTER TABLE posts 
+      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'
+    `)
+    
+    // Create index for performance if it doesn't exist
+    await q(`
+      CREATE INDEX IF NOT EXISTS posts_created_at_idx 
+      ON posts (created_at DESC)
+    `)
+    
     console.log('✅ Database initialized')
   } catch (error) {
     console.error('❌ Database initialization failed:', error)
