@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { initDb, q, closeDb } from './db.js'
 
 const app = express()
 const PORT = process.env.PORT || 8080
@@ -60,7 +61,7 @@ app.get('/', (req, res) => {
   res.json({
     ok: true,
     service: "api",
-    endpoints: ["/healthz", "/api/hello"]
+    endpoints: ["/healthz", "/api/hello", "/api/db/now", "/api/posts"]
   })
 })
 
@@ -77,6 +78,73 @@ app.get('/api/hello', (req, res) => {
   res.json({ 
     message: "Hello from Render Express API!" 
   })
+})
+
+// Database smoke test
+app.get('/api/db/now', async (req, res, next) => {
+  try {
+    const result = await q('SELECT NOW()')
+    res.json({ now: result.rows[0].now })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Get all posts
+app.get('/api/posts', async (req, res, next) => {
+  try {
+    const result = await q('SELECT * FROM posts ORDER BY created_at DESC LIMIT 50')
+    res.json(result.rows)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Get single post by ID
+app.get('/api/posts/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const result = await q('SELECT * FROM posts WHERE id = $1', [id])
+    
+    if (result.rows.length === 0) {
+      const err = new Error('Post not found')
+      err.status = 404
+      return next(err)
+    }
+    
+    res.json(result.rows[0])
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Create new post
+app.post('/api/posts', async (req, res, next) => {
+  try {
+    const { title, body } = req.body
+    
+    // Validation
+    if (!title || !body) {
+      const err = new Error('Title and body are required')
+      err.status = 400
+      return next(err)
+    }
+    
+    if (typeof title !== 'string' || typeof body !== 'string') {
+      const err = new Error('Title and body must be strings')
+      err.status = 400
+      return next(err)
+    }
+    
+    const result = await q(
+      'INSERT INTO posts (title, body) VALUES ($1, $2) RETURNING *',
+      [title.trim(), body.trim()]
+    )
+    
+    res.status(201).json(result.rows[0])
+  } catch (error) {
+    next(error)
+  }
 })
 
 // 404 handler - convert unmatched routes to a 404 error
@@ -101,10 +169,36 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
-  console.log(`🏥 Health check: http://localhost:${PORT}/healthz`)
-  console.log(`📡 Test endpoint: http://localhost:${PORT}/api/hello`)
-  console.log(`🌐 CORS allowed origins: ${allowedOrigins.map(o => o instanceof RegExp ? o.source : o).join(', ')}`)
+// Graceful shutdown handlers
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...')
+  await closeDb()
+  process.exit(0)
 })
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...')
+  await closeDb()
+  process.exit(0)
+})
+
+// Initialize database and start server
+async function startServer() {
+  try {
+    await initDb()
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`)
+      console.log(`🏥 Health check: http://localhost:${PORT}/healthz`)
+      console.log(`📡 Test endpoint: http://localhost:${PORT}/api/hello`)
+      console.log(`🗄️ Database test: http://localhost:${PORT}/api/db/now`)
+      console.log(`📝 Posts API: http://localhost:${PORT}/api/posts`)
+      console.log(`🌐 CORS allowed origins: ${allowedOrigins.map(o => o instanceof RegExp ? o.source : o).join(', ')}`)
+    })
+  } catch (error) {
+    console.error('Failed to start server:', error)
+    process.exit(1)
+  }
+}
+
+startServer()
