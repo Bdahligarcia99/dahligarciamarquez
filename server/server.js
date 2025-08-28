@@ -7,7 +7,8 @@ const PORT = process.env.PORT || 8080
 
 // Request logging middleware (before CORS/body-parsing)
 app.use((req, res, next) => {
-  if (req.path === '/healthz') return next();
+  // Skip logging for common routes that would clutter logs
+  if (['/healthz', '/favicon.ico', '/'].includes(req.path)) return next();
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
@@ -53,6 +54,15 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    service: "api",
+    endpoints: ["/healthz", "/api/hello"]
+  })
+})
 
 // Health check endpoint
 app.get('/healthz', (req, res) => {
