@@ -1,23 +1,30 @@
 // client/src/lib/adminAuth.js
-let adminToken = sessionStorage.getItem("ADMIN_TOKEN") || null;
 
-export function ensureAdminToken() {
-  if (!adminToken) {
-    const t = window.prompt("Admin access token?");
-    if (t) {
-      adminToken = t.trim();
-      sessionStorage.setItem("ADMIN_TOKEN", adminToken);
-    }
-  }
-  return adminToken;
+export function getAdminToken() {
+  return localStorage.getItem("ADMIN_TOKEN");
+}
+
+export function setAdminToken(token) {
+  localStorage.setItem("ADMIN_TOKEN", token);
 }
 
 export function clearAdminToken() {
-  adminToken = null;
-  sessionStorage.removeItem("ADMIN_TOKEN");
+  localStorage.removeItem("ADMIN_TOKEN");
+}
+
+export function ensureAdminToken() {
+  let token = getAdminToken();
+  if (!token) {
+    const t = window.prompt("Admin access token?");
+    if (t) {
+      token = t.trim();
+      setAdminToken(token);
+    }
+  }
+  return token;
 }
 
 export function adminHeaders() {
-  const t = adminToken ?? sessionStorage.getItem("ADMIN_TOKEN");
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  const token = getAdminToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }

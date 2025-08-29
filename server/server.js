@@ -91,6 +91,11 @@ app.get('/api/db/now', async (req, res, next) => {
   }
 })
 
+// Admin verification endpoint
+app.get('/api/admin/ping', requireAdmin, (req, res) => {
+  res.json({ ok: true })
+})
+
 // Get all posts with filtering and pagination (admin only)
 app.get('/api/posts', requireAdmin, async (req, res, next) => {
   try {

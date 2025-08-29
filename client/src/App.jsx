@@ -1,7 +1,10 @@
 // client/src/App.jsx
-import { useState, Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, Suspense, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { api, getApiBase } from './lib/api'
+import { AdminProvider } from './features/admin/AdminProvider'
+import AdminLogin from './features/admin/AdminLogin'
+import AdminTokenModal from './components/AdminTokenModal'
 import Posts from './features/posts/Posts'
 import Dashboard from './features/dashboard/Dashboard'
 import RequireAdmin from './features/dashboard/RequireAdmin'
@@ -14,10 +17,31 @@ import StoriesPage from './pages/StoriesPage'
 import StoryDetail from './pages/StoryDetail'
 import NotFound from './components/NotFound'
 
-function App() {
+function AppShell() {
+  const location = useLocation()
+  const [modalOpen, setModalOpen] = useState(false)
   const [apiResponse, setApiResponse] = useState(null)
   const [apiError, setApiError] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  // Query flag ?admin=1
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get("admin") === "1") {
+      setModalOpen(true)
+    }
+  }, [location.search])
+
+  // Desktop hotkey Ctrl+Alt+D
+  useEffect(() => {
+    function onKey(e) {
+      if (e.ctrlKey && e.altKey && e.key.toLowerCase() === "d") {
+        setModalOpen(true)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
 
   const testApiCall = async () => {
     setLoading(true)
@@ -35,9 +59,9 @@ function App() {
   }
 
   return (
-    <Router>
+    <>
       <div className="min-h-screen bg-secondary-50">
-        <Navbar />
+        <Navbar onRequestAdminModal={() => setModalOpen(true)} />
         
         {/* API Test Section - only show on home page */}
         <div className="bg-blue-50 border-b border-blue-200 py-4">
@@ -81,6 +105,7 @@ function App() {
           
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/admin" element={<AdminLogin />} />
             <Route path="/posts" element={<Navigate to="/dashboard/posts" replace />} />
             <Route 
               path="/dashboard/*" 
@@ -102,6 +127,18 @@ function App() {
           </Routes>
         </main>
       </div>
+      
+      <AdminTokenModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <AdminProvider>
+        <AppShell />
+      </AdminProvider>
     </Router>
   )
 }

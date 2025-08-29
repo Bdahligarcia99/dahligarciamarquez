@@ -1,11 +1,14 @@
 // client/src/components/Navbar.jsx
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useAdmin } from "../features/admin/AdminProvider";
 import "../styles/nav.css";
 
-export default function Navbar() {
+export default function Navbar({ onRequestAdminModal }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const timerRef = useRef(null);
+  const { isAdmin } = useAdmin();
 
   useEffect(() => {
     function onDocClick(e) {
@@ -25,16 +28,34 @@ export default function Navbar() {
 
   const onNav = () => setOpen(false);
 
+  // Long-press handlers for admin modal
+  function onDown() {
+    timerRef.current = window.setTimeout(() => onRequestAdminModal?.(), 1500);
+  }
+  function onUp() {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }
+
   return (
     <header className="nav-root" ref={menuRef}>
       <div className="nav-bar container">
-        <Link to="/" className="brand">My Stories</Link>
+        <Link 
+          to="/" 
+          className="brand"
+          onPointerDown={onDown}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onPointerLeave={onUp}
+        >
+          My Stories
+        </Link>
 
         <nav className="links-desktop" aria-label="Primary">
           <NavLink to="/" className="link">Home</NavLink>
           <NavLink to="/stories" className="link">Stories</NavLink>
           <NavLink to="/blog" className="link">Blog</NavLink>
-          <NavLink to="/dashboard" className="link">Dashboard</NavLink>
+          {isAdmin && <NavLink to="/dashboard" className="link">Dashboard</NavLink>}
         </nav>
 
         <button
@@ -57,7 +78,7 @@ export default function Navbar() {
         <NavLink to="/" className="panel-link" onClick={onNav}>Home</NavLink>
         <NavLink to="/stories" className="panel-link" onClick={onNav}>Stories</NavLink>
         <NavLink to="/blog" className="panel-link" onClick={onNav}>Blog</NavLink>
-        <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>
+        {isAdmin && <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>}
       </nav>
     </header>
   );
