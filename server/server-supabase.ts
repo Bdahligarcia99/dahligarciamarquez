@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import { config } from './src/config.js'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -11,7 +11,7 @@ import postsRoutes from './routes/posts.js'
 import imagesRoutes from './routes/images.js'
 
 const app = express()
-const PORT = process.env.PORT || 8080
+const PORT = config.server.port
 
 // Security middleware
 app.use(helmet())

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "db:seed": "node db/seed.js"
+    "db:seed": "node db/seed.js",
+    "migrate": "tsx ./scripts/migrate.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

@@ -1,11 +1,20 @@
-import 'dotenv/config'
+import { config } from './src/config.js'
 import express from 'express'
 import cors from 'cors'
 import { initDb, q, closeDb } from './db.js'
 import { requireAdmin } from './middleware/requireAdmin.js'
+import { query } from './src/db.js'
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+// Get package.json for version endpoint
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
 
 const app = express()
-const PORT = process.env.PORT || 8080
+const PORT = config.server.port
 
 // Request logging middleware (before CORS/body-parsing)
 app.use((req, res, next) => {
@@ -62,7 +71,7 @@ app.get('/', (req, res) => {
   res.json({
     ok: true,
     service: "api",
-    endpoints: ["/healthz", "/api/hello", "/api/db/now", "/api/posts"]
+    endpoints: ["/healthz", "/api/db/health", "/api/version", "/api/hello", "/api/db/now", "/api/posts"]
   })
 })
 
@@ -72,6 +81,24 @@ app.get('/healthz', (req, res) => {
     ok: true, 
     uptime: process.uptime() 
   })
+})
+
+// Database health check endpoint
+app.get('/api/db/health', async (req, res) => {
+  try {
+    await query('SELECT 1 AS ok')
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(500).json({ 
+      ok: false, 
+      error: error.message 
+    })
+  }
+})
+
+// Version endpoint
+app.get('/api/version', (req, res) => {
+  res.json({ version: packageJson.version })
 })
 
 // Test route
