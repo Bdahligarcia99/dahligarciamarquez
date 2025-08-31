@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "node --env-file=.env --import tsx server.js",
     "dev": "node server.js",
     "db:seed": "node db/seed.js",
     "migrate": "tsx ./scripts/migrate.ts"

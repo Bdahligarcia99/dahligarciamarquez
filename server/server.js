@@ -1,8 +1,8 @@
-import { config } from './src/config.js'
+import { config } from './src/config.ts'
 import express from 'express'
 import cors from 'cors'
 import { initDb, q, closeDb } from './db.js'
-import { requireAdmin } from './middleware/requireAdmin.js'
+import { requireAdmin } from './src/middleware/requireAdmin.js'
 import { query } from './src/db.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -122,6 +122,28 @@ app.get('/api/db/now', async (req, res, next) => {
 app.get('/api/admin/ping', requireAdmin, (req, res) => {
   res.json({ ok: true })
 })
+
+// Debug endpoint for auth troubleshooting (development only)
+if (config.server.nodeEnv === 'development') {
+  app.get('/api/debug/auth', (req, res) => {
+    const hasTokenConfigured = Boolean(process.env.SERVER_ADMIN_TOKEN)
+    
+    let providedAuthHeader = null
+    const authHeader = req.get('authorization') || req.get('Authorization')
+    const xAdminToken = req.get('x-admin-token') || req.get('X-Admin-Token')
+    
+    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+      providedAuthHeader = 'authorization'
+    } else if (xAdminToken) {
+      providedAuthHeader = 'x-admin-token'
+    }
+    
+    res.json({
+      hasTokenConfigured,
+      providedAuthHeader
+    })
+  })
+}
 
 // Get all posts with filtering and pagination (admin only)
 app.get('/api/posts', requireAdmin, async (req, res, next) => {

@@ -41,9 +41,13 @@ export const config: Config = {
   }
 }
 
+// Export SERVER_ADMIN_TOKEN
+export const SERVER_ADMIN_TOKEN: string | undefined = process.env.SERVER_ADMIN_TOKEN
+
 // Log successful configuration load (without sensitive data)
 console.log('✅ Configuration loaded successfully')
 console.log(`📊 Environment: ${config.server.nodeEnv}`)
 console.log(`🚀 Port: ${config.server.port}`)
 console.log(`🔗 Database: ${config.database.url ? 'Connected' : 'Not configured'}`)
 console.log(`🔑 Supabase: ${config.supabase.url ? 'Configured' : 'Not configured'}`)
+console.log('🔐 Admin token configured:', Boolean(process.env.SERVER_ADMIN_TOKEN))
