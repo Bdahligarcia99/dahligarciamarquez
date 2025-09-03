@@ -3,7 +3,25 @@ import { Router } from 'express'
 import { supabaseAdmin } from '../auth/supabaseAdmin.js'
 import { requireUser } from '../middleware/requireUser.js'
 import { requireAdmin } from '../middleware/requireAdmin.js'
+import { requireAdminOrUser, AdminOrUserRequest } from '../src/middleware/requireAdminOrUser.js'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
+import { slugify, validateSlugAvailability } from '../src/utils/slugify.js'
+import { extractTextFromRichContent } from '../src/utils/contentExtractor.js'
+import { 
+  validateTitle, 
+  validateExcerpt, 
+  validateSlugFormat, 
+  validateStatus, 
+  validateRichContent,
+  createValidationErrorResponse,
+  ValidationError 
+} from '../src/utils/validation.js'
+import {
+  createErrorResponse,
+  createListResponse,
+  createSingleResponse,
+  HTTP_STATUS
+} from '../src/utils/responses.js'
 
 const router = Router()
 
@@ -61,17 +79,10 @@ router.get('/', async (req, res) => {
       throw error
     }
     
-    res.json({
-      data: data || [],
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: count || 0
-      }
-    })
+    res.json(createListResponse(data || [], pageNum, limitNum, count || 0))
   } catch (error) {
     console.error('Error fetching posts:', error)
-    res.status(500).json({ error: 'Failed to fetch posts' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to fetch posts'))
   }
 })
 
@@ -128,17 +139,10 @@ router.get('/admin', requireAdmin, async (req: AuthenticatedRequest, res) => {
       throw error
     }
     
-    res.json({
-      data: data || [],
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: count || 0
-      }
-    })
+    res.json(createListResponse(data || [], pageNum, limitNum, count || 0))
   } catch (error) {
     console.error('Error fetching admin posts:', error)
-    res.status(500).json({ error: 'Failed to fetch posts' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to fetch posts'))
   }
 })
 
@@ -177,57 +181,116 @@ router.get('/:id', async (req, res) => {
     
     if (error) {
       if (error.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Post not found' })
+        return res.status(HTTP_STATUS.NOT_FOUND).json(createErrorResponse('Post not found'))
       }
       throw error
     }
     
-    res.json(data)
+    res.json(createSingleResponse('post', data))
   } catch (error) {
     console.error('Error fetching post:', error)
-    res.status(500).json({ error: 'Failed to fetch post' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to fetch post'))
   }
 })
 
-// POST /api/posts - Create new post (authenticated users)
-router.post('/', requireUser, async (req: AuthenticatedRequest, res) => {
+// POST /api/posts - Create new post (admin token or authenticated user required)
+router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
   try {
-    const { title, content_rich, excerpt, cover_image_url, status = 'draft', label_ids = [] } = req.body
+    const { 
+      title, 
+      content_rich, 
+      excerpt, 
+      cover_image_url, 
+      status = 'draft', 
+      label_ids = [],
+      slug: providedSlug
+    } = req.body
     
-    if (!title || typeof title !== 'string') {
-      return res.status(400).json({ error: 'Title is required and must be a string' })
+    // Validate all fields
+    const errors: ValidationError[] = [
+      ...validateTitle(title),
+      ...validateRichContent(content_rich),
+      ...validateExcerpt(excerpt),
+      ...validateStatus(status)
+    ]
+    
+    // Validate provided slug if any
+    if (providedSlug !== undefined) {
+      errors.push(...validateSlugFormat(providedSlug))
     }
     
-    if (!content_rich) {
-      return res.status(400).json({ error: 'Content is required' })
+    // Determine author_id based on auth type
+    let authorId: string
+    if (req.isAdmin) {
+      // For admin token, require author_id in request
+      const { author_id } = req.body
+      if (!author_id || typeof author_id !== 'string') {
+        errors.push({
+          field: 'author_id',
+          message: 'author_id is required when using admin token',
+          code: 'REQUIRED'
+        })
+      } else {
+        authorId = author_id
+      }
+    } else {
+      // For user token, use authenticated user's ID
+      authorId = req.user!.id
     }
     
-    const trimmedTitle = title.trim()
-    if (trimmedTitle.length === 0) {
-      return res.status(400).json({ error: 'Title cannot be empty' })
+    // Return validation errors if any
+    if (errors.length > 0) {
+      return res.status(HTTP_STATUS.UNPROCESSABLE_ENTITY).json(createValidationErrorResponse(errors))
     }
     
-    if (!['draft', 'published', 'archived'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' })
+    // Generate or validate slug
+    let finalSlug: string
+    try {
+      if (providedSlug) {
+        // Validate provided slug is available
+        const isAvailable = await validateSlugAvailability(providedSlug.trim())
+        if (!isAvailable) {
+          return res.status(HTTP_STATUS.UNPROCESSABLE_ENTITY).json(createValidationErrorResponse([{
+            field: 'slug',
+            message: 'This slug is already taken or reserved',
+            code: 'UNAVAILABLE'
+          }]))
+        }
+        finalSlug = providedSlug.trim()
+      } else {
+        // Generate slug from title
+        finalSlug = await slugify(title.trim())
+      }
+    } catch (slugError: any) {
+      return res.status(HTTP_STATUS.UNPROCESSABLE_ENTITY).json(createValidationErrorResponse([{
+        field: 'slug',
+        message: slugError.message || 'Failed to generate slug',
+        code: 'GENERATION_FAILED'
+      }]))
     }
+    
+    // Extract plain text from rich content
+    const contentText = extractTextFromRichContent(content_rich)
     
     // Create the post
     const { data: post, error: postError } = await supabaseAdmin
       .from('posts')
       .insert({
-        title: trimmedTitle,
+        title: title.trim(),
+        slug: finalSlug,
         content_rich,
+        content_text: contentText,
         excerpt: excerpt?.trim() || null,
         cover_image_url: cover_image_url || null,
         status,
-        author_id: req.user!.id
+        author_id: authorId
       })
       .select('id, title, slug, status, created_at')
       .single()
     
     if (postError) {
       if (postError.code === '23505') { // Unique constraint violation
-        return res.status(409).json({ error: 'A post with this title already exists' })
+        return res.status(HTTP_STATUS.CONFLICT).json(createErrorResponse( 'A post with this slug already exists' })
       }
       throw postError
     }
@@ -244,48 +307,109 @@ router.post('/', requireUser, async (req: AuthenticatedRequest, res) => {
         .insert(labelInserts)
     }
     
-    res.status(201).json(post)
+    res.status(HTTP_STATUS.CREATED).json(createSingleResponse('post', post))
   } catch (error) {
     console.error('Error creating post:', error)
-    res.status(500).json({ error: 'Failed to create post' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to create post'))
   }
 })
 
-// PUT /api/posts/:id - Update post (author or admin)
-router.put('/:id', requireUser, async (req: AuthenticatedRequest, res) => {
+// PUT /api/posts/:id - Update post (admin token or author)
+router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
   try {
     const { id } = req.params
-    const { title, content_rich, excerpt, cover_image_url, status, label_ids } = req.body
+    const { 
+      title, 
+      content_rich, 
+      excerpt, 
+      cover_image_url, 
+      status, 
+      label_ids,
+      regenerateSlug = false 
+    } = req.body
     
-    // Check if user owns the post or is admin
-    const { data: existingPost, error: fetchError } = await supabaseAdmin
-      .from('posts')
-      .select('author_id')
-      .eq('id', id)
-      .single()
-    
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Post not found' })
+    // Check authorization based on auth type
+    if (!req.isAdmin) {
+      // For user tokens, check ownership
+      const { data: existingPost, error: fetchError } = await supabaseAdmin
+        .from('posts')
+        .select('author_id, title, slug')
+        .eq('id', id)
+        .single()
+      
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          return res.status(404).json({ error: 'Post not found' })
+        }
+        throw fetchError
       }
-      throw fetchError
+      
+      if (existingPost.author_id !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized to update this post' })
+      }
+    }
+    // Admin token users can update any post
+    
+    // Validate fields that are being updated
+    const errors: ValidationError[] = []
+    
+    if (title !== undefined) {
+      errors.push(...validateTitle(title))
     }
     
-    if (existingPost.author_id !== req.user!.id && req.user!.role !== 'admin') {
-      return res.status(403).json({ error: 'Not authorized to update this post' })
+    if (content_rich !== undefined) {
+      errors.push(...validateRichContent(content_rich))
+    }
+    
+    if (excerpt !== undefined) {
+      errors.push(...validateExcerpt(excerpt))
+    }
+    
+    if (status !== undefined) {
+      errors.push(...validateStatus(status))
+    }
+    
+    // Return validation errors if any
+    if (errors.length > 0) {
+      return res.status(HTTP_STATUS.UNPROCESSABLE_ENTITY).json(createValidationErrorResponse(errors))
     }
     
     // Build update object
     const updates: any = {}
-    if (title !== undefined) updates.title = title.trim()
-    if (content_rich !== undefined) updates.content_rich = content_rich
-    if (excerpt !== undefined) updates.excerpt = excerpt?.trim() || null
-    if (cover_image_url !== undefined) updates.cover_image_url = cover_image_url || null
+    
+    if (title !== undefined) {
+      updates.title = title.trim()
+    }
+    
+    if (content_rich !== undefined) {
+      updates.content_rich = content_rich
+      // Always update content_text when content_rich changes
+      updates.content_text = extractTextFromRichContent(content_rich)
+    }
+    
+    if (excerpt !== undefined) {
+      updates.excerpt = excerpt?.trim() || null
+    }
+    
+    if (cover_image_url !== undefined) {
+      updates.cover_image_url = cover_image_url || null
+    }
+    
     if (status !== undefined) {
-      if (!['draft', 'published', 'archived'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status' })
-      }
       updates.status = status
+    }
+    
+    // Handle slug regeneration
+    if (regenerateSlug && title !== undefined) {
+      try {
+        updates.slug = await slugify(title.trim(), id)
+      } catch (slugError: any) {
+        return res.status(HTTP_STATUS.UNPROCESSABLE_ENTITY).json(createValidationErrorResponse([{
+          field: 'slug',
+          message: slugError.message || 'Failed to regenerate slug',
+          code: 'GENERATION_FAILED'
+        }]))
+      }
     }
     
     // Update the post
@@ -297,6 +421,9 @@ router.put('/:id', requireUser, async (req: AuthenticatedRequest, res) => {
       .single()
     
     if (updateError) {
+      if (updateError.code === '23505') { // Unique constraint violation
+        return res.status(HTTP_STATUS.CONFLICT).json(createErrorResponse( 'A post with this slug already exists' })
+      }
       throw updateError
     }
     
@@ -321,35 +448,39 @@ router.put('/:id', requireUser, async (req: AuthenticatedRequest, res) => {
       }
     }
     
-    res.json(updatedPost)
+    res.json(createSingleResponse('post', updatedPost))
   } catch (error) {
     console.error('Error updating post:', error)
-    res.status(500).json({ error: 'Failed to update post' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to update post'))
   }
 })
 
-// DELETE /api/posts/:id - Delete post (author or admin)
-router.delete('/:id', requireUser, async (req: AuthenticatedRequest, res) => {
+// DELETE /api/posts/:id - Delete post (admin token or author)
+router.delete('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
   try {
     const { id } = req.params
     
-    // Check if user owns the post or is admin
-    const { data: existingPost, error: fetchError } = await supabaseAdmin
-      .from('posts')
-      .select('author_id')
-      .eq('id', id)
-      .single()
-    
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Post not found' })
+    // Check authorization based on auth type
+    if (!req.isAdmin) {
+      // For user tokens, check ownership
+      const { data: existingPost, error: fetchError } = await supabaseAdmin
+        .from('posts')
+        .select('author_id')
+        .eq('id', id)
+        .single()
+      
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          return res.status(404).json({ error: 'Post not found' })
+        }
+        throw fetchError
       }
-      throw fetchError
+      
+      if (existingPost.author_id !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized to delete this post' })
+      }
     }
-    
-    if (existingPost.author_id !== req.user!.id && req.user!.role !== 'admin') {
-      return res.status(403).json({ error: 'Not authorized to delete this post' })
-    }
+    // Admin token users can delete any post
     
     const { error } = await supabaseAdmin
       .from('posts')
@@ -363,7 +494,7 @@ router.delete('/:id', requireUser, async (req: AuthenticatedRequest, res) => {
     res.json({ deleted: true })
   } catch (error) {
     console.error('Error deleting post:', error)
-    res.status(500).json({ error: 'Failed to delete post' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse( 'Failed to delete post' })
   }
 })
 
