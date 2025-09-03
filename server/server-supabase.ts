@@ -57,10 +57,14 @@ const corsOptions = {
     callback(ok ? null : new Error('Not allowed by CORS'), ok);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  credentials: true
+  allowedHeaders: ['Authorization', 'X-Admin-Token', 'Content-Type', 'Accept', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'ETag'],
+  credentials: true,
+  optionsSuccessStatus: 204
 };
 
 // Middleware
+app.options('*', cors(corsOptions))
 app.use(cors(corsOptions))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
@@ -154,6 +158,7 @@ app.listen(PORT, () => {
   console.log(`🗄️ Database: Supabase Postgres`)
   console.log(`📦 Storage: Supabase Storage`)
   console.log(`🌐 CORS allowed origins: ${allowedOrigins.map(o => o instanceof RegExp ? o.source : o).join(', ')}`)
+  console.log('[boot] CORS configured with allowedHeaders: Authorization, X-Admin-Token')
 })
 
 export default app
