@@ -314,7 +314,7 @@ router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
     
     if (postError) {
       if (postError.code === '23505') { // Unique constraint violation
-        return res.status(HTTP_STATUS.CONFLICT).json(createErrorResponse( 'A post with this slug already exists' })
+        return res.status(HTTP_STATUS.CONFLICT).json(createErrorResponse('A post with this slug already exists'))
       }
       throw postError
     }
@@ -467,7 +467,7 @@ router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
     
     if (updateError) {
       if (updateError.code === '23505') { // Unique constraint violation
-        return res.status(HTTP_STATUS.CONFLICT).json(createErrorResponse( 'A post with this slug already exists' })
+        return res.status(HTTP_STATUS.CONFLICT).json(createErrorResponse('A post with this slug already exists'))
       }
       throw updateError
     }
@@ -543,7 +543,7 @@ router.delete('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) =
     res.json({ deleted: true })
   } catch (error) {
     console.error('Error deleting post:', error)
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse( 'Failed to delete post' })
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to delete post'))
   }
 })
 
