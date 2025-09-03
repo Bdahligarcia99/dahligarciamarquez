@@ -1,6 +1,6 @@
 // client/src/features/dashboard/SettingsPage.jsx
 import { useState, useEffect } from 'react'
-import { API_URL, API_MISCONFIGURED, apiGet } from '../../lib/api'
+import { API_URL, API_MISCONFIGURED, apiGet, api, getApiBase } from '../../lib/api'
 import StatusBadge from './components/StatusBadge'
 
 const SettingsPage = () => {
@@ -8,6 +8,11 @@ const SettingsPage = () => {
   const [dbNow, setDbNow] = useState(null)
   const [healthLoading, setHealthLoading] = useState(false)
   const [dbLoading, setDbLoading] = useState(false)
+  
+  // API Test Widget state
+  const [apiResponse, setApiResponse] = useState(null)
+  const [apiError, setApiError] = useState(null)
+  const [apiTestLoading, setApiTestLoading] = useState(false)
 
   const checkHealth = async () => {
     try {
@@ -43,6 +48,22 @@ const SettingsPage = () => {
     checkDbNow()
   }
 
+  // API Test Widget functionality
+  const testApiCall = async () => {
+    setApiTestLoading(true)
+    setApiError(null)
+    setApiResponse(null)
+    
+    try {
+      const data = await api('/api/hello')
+      setApiResponse(data)
+    } catch (error) {
+      setApiError(error.message)
+    } finally {
+      setApiTestLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
@@ -74,13 +95,42 @@ const SettingsPage = () => {
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              API Base URL
+              API Base URL (VITE_API_URL)
             </label>
             <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-mono">
-              {API_URL}
+              {getApiBase() || 'Not set'}
             </div>
           </div>
         </div>
+      </div>
+
+      {/* API Test Widget */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-lg font-semibold mb-4">API Connection Test</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Test the connection to your backend API by pinging the <code className="bg-gray-100 px-1 rounded">/api/hello</code> endpoint.
+        </p>
+        
+        <button
+          onClick={testApiCall}
+          disabled={apiTestLoading}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          {apiTestLoading ? 'Testing...' : 'Ping API'}
+        </button>
+        
+        {apiResponse && (
+          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+            <strong>Success:</strong> 
+            <pre className="mt-1 text-sm overflow-auto">{JSON.stringify(apiResponse, null, 2)}</pre>
+          </div>
+        )}
+        
+        {apiError && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+            <strong>Error:</strong> {apiError}
+          </div>
+        )}
       </div>
 
       {/* Live Status Checks */}
