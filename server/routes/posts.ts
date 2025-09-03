@@ -7,6 +7,7 @@ import { requireAdminOrUser, AdminOrUserRequest } from '../src/middleware/requir
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 import { slugify, validateSlugAvailability } from '../src/utils/slugify.js'
 import { extractTextFromRichContent } from '../src/utils/contentExtractor.js'
+import { sanitizePostHtml, calculateReadingTime, extractTextFromHtml } from '../src/utils/sanitizeHtml.js'
 import { 
   validateTitle, 
   validateExcerpt, 
@@ -46,6 +47,7 @@ router.get('/', async (req, res) => {
         title,
         slug,
         excerpt,
+        reading_time,
         cover_image_url,
         created_at,
         updated_at,
@@ -107,6 +109,7 @@ router.get('/admin', requireAdmin, async (req: AuthenticatedRequest, res) => {
         title,
         slug,
         excerpt,
+        reading_time,
         status,
         created_at,
         updated_at,
@@ -159,6 +162,8 @@ router.get('/:id', async (req, res) => {
         slug,
         content_rich,
         content_text,
+        content_html,
+        reading_time,
         excerpt,
         cover_image_url,
         status,
@@ -199,6 +204,7 @@ router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
     const { 
       title, 
       content_rich, 
+      content_html,
       excerpt, 
       cover_image_url, 
       status = 'draft', 
@@ -272,19 +278,37 @@ router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
     // Extract plain text from rich content
     const contentText = extractTextFromRichContent(content_rich)
     
+    // Sanitize HTML content if provided
+    let sanitizedHtml: string | null = null
+    let readingTime = 0
+    
+    if (content_html && typeof content_html === 'string') {
+      sanitizedHtml = sanitizePostHtml(content_html)
+      const plainText = extractTextFromHtml(sanitizedHtml)
+      readingTime = calculateReadingTime(plainText)
+    } else if (contentText) {
+      // Fallback to content_text for reading time
+      readingTime = calculateReadingTime(contentText)
+    }
+    
+    // Prepare post data for insertion
+    const postData: any = {
+      title: title.trim(),
+      slug: finalSlug,
+      content_rich,
+      content_text: contentText,
+      content_html: sanitizedHtml,
+      reading_time: Math.max(1, readingTime), // Ensure minimum 1 minute
+      excerpt: excerpt?.trim() || null,
+      cover_image_url: cover_image_url || null,
+      status,
+      author_id: authorId
+    }
+    
     // Create the post
     const { data: post, error: postError } = await supabaseAdmin
       .from('posts')
-      .insert({
-        title: title.trim(),
-        slug: finalSlug,
-        content_rich,
-        content_text: contentText,
-        excerpt: excerpt?.trim() || null,
-        cover_image_url: cover_image_url || null,
-        status,
-        author_id: authorId
-      })
+      .insert(postData)
       .select('id, title, slug, status, created_at')
       .single()
     
@@ -307,7 +331,11 @@ router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
         .insert(labelInserts)
     }
     
-    res.status(HTTP_STATUS.CREATED).json(createSingleResponse('post', post))
+    res.status(HTTP_STATUS.CREATED).json(createSingleResponse('post', {
+      ...post,
+      reading_time: Math.max(1, readingTime),
+      content_html: sanitizedHtml // Return sanitized HTML (now persisted)
+    }))
   } catch (error) {
     console.error('Error creating post:', error)
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to create post'))
@@ -321,6 +349,7 @@ router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
     const { 
       title, 
       content_rich, 
+      content_html,
       excerpt, 
       cover_image_url, 
       status, 
@@ -387,6 +416,22 @@ router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
       updates.content_text = extractTextFromRichContent(content_rich)
     }
     
+    // Handle HTML sanitization and reading time calculation
+    let sanitizedHtml: string | null = null
+    let readingTime = 0
+    
+    if (content_html !== undefined && typeof content_html === 'string') {
+      sanitizedHtml = sanitizePostHtml(content_html)
+      const plainText = extractTextFromHtml(sanitizedHtml)
+      readingTime = calculateReadingTime(plainText)
+      
+      updates.content_html = sanitizedHtml
+      updates.reading_time = Math.max(1, readingTime) // Ensure minimum 1 minute
+    } else if (updates.content_text) {
+      // Calculate reading time from updated content_text
+      readingTime = calculateReadingTime(updates.content_text)
+    }
+    
     if (excerpt !== undefined) {
       updates.excerpt = excerpt?.trim() || null
     }
@@ -448,7 +493,11 @@ router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
       }
     }
     
-    res.json(createSingleResponse('post', updatedPost))
+    res.json(createSingleResponse('post', {
+      ...updatedPost,
+      reading_time: Math.max(1, readingTime),
+      content_html: sanitizedHtml // Return sanitized HTML (now persisted)
+    }))
   } catch (error) {
     console.error('Error updating post:', error)
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to update post'))

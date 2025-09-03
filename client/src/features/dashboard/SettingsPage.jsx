@@ -1,6 +1,7 @@
 // client/src/features/dashboard/SettingsPage.jsx
 import { useState, useEffect } from 'react'
 import { API_URL, API_MISCONFIGURED, apiGet, api, getApiBase } from '../../lib/api'
+import { apiAdminGet, apiAdminPost } from '../../lib/api'
 import StatusBadge from './components/StatusBadge'
 
 const SettingsPage = () => {
@@ -13,6 +14,12 @@ const SettingsPage = () => {
   const [apiResponse, setApiResponse] = useState(null)
   const [apiError, setApiError] = useState(null)
   const [apiTestLoading, setApiTestLoading] = useState(false)
+
+  // Coming Soon mode state
+  const [comingSoonEnabled, setComingSoonEnabled] = useState(false)
+  const [comingSoonLoading, setComingSoonLoading] = useState(false)
+  const [comingSoonError, setComingSoonError] = useState(null)
+  const [comingSoonSuccess, setComingSoonSuccess] = useState(null)
 
   const checkHealth = async () => {
     try {
@@ -41,11 +48,42 @@ const SettingsPage = () => {
   useEffect(() => {
     checkHealth()
     checkDbNow()
+    fetchComingSoonStatus()
   }, [])
 
   const refreshStatus = () => {
     checkHealth()
     checkDbNow()
+  }
+
+  // Coming Soon functionality
+  const fetchComingSoonStatus = async () => {
+    try {
+      const data = await apiAdminGet('/api/admin/coming-soon')
+      setComingSoonEnabled(data.enabled)
+    } catch (error) {
+      console.error('Failed to fetch Coming Soon status:', error)
+    }
+  }
+
+  const toggleComingSoon = async () => {
+    setComingSoonLoading(true)
+    setComingSoonError(null)
+    setComingSoonSuccess(null)
+
+    try {
+      const newStatus = !comingSoonEnabled
+      const data = await apiAdminPost('/api/admin/coming-soon', { enabled: newStatus })
+      setComingSoonEnabled(data.enabled)
+      setComingSoonSuccess(`Coming Soon mode ${data.enabled ? 'enabled' : 'disabled'} successfully`)
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setComingSoonSuccess(null), 3000)
+    } catch (error) {
+      setComingSoonError(`Failed to toggle Coming Soon mode: ${error.message}`)
+    } finally {
+      setComingSoonLoading(false)
+    }
   }
 
   // API Test Widget functionality
@@ -102,6 +140,51 @@ const SettingsPage = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Coming Soon Mode */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-lg font-semibold mb-4">Coming Soon Mode</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Enable Coming Soon mode to block all non-admin traffic with a maintenance page. Admins can still access the site normally.
+        </p>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={comingSoonEnabled}
+                onChange={toggleComingSoon}
+                disabled={comingSoonLoading}
+                className="sr-only"
+              />
+              <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${comingSoonEnabled ? 'bg-blue-600' : ''} ${comingSoonLoading ? 'opacity-50' : ''}`}></div>
+              <span className="ml-3 text-sm font-medium text-gray-700">
+                {comingSoonEnabled ? 'Enabled' : 'Disabled'}
+                {comingSoonLoading && ' (updating...)'}
+              </span>
+            </label>
+          </div>
+          
+          <StatusBadge
+            status={comingSoonEnabled ? 'warning' : 'success'}
+            text={comingSoonEnabled ? 'Coming Soon Active' : 'Site Live'}
+          />
+        </div>
+
+        {/* Success/Error Messages */}
+        {comingSoonSuccess && (
+          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800">
+            {comingSoonSuccess}
+          </div>
+        )}
+        
+        {comingSoonError && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+            {comingSoonError}
+          </div>
+        )}
       </div>
 
       {/* API Test Widget */}

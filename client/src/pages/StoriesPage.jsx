@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { queryPosts } from '../data/postApi'
+import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 export default function StoriesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -15,6 +16,17 @@ export default function StoriesPage() {
   const availableTags = ['personal', 'insight', 'community', 'news']
 
   useEffect(() => {
+    // Set page metadata
+    const pageTitle = q ? `Search: "${q}"` : tag ? `Tag: ${tag}` : 'Stories'
+    const pageDescription = q 
+      ? `Search results for "${q}" on dahligarciamarquez`
+      : tag 
+      ? `Stories tagged with "${tag}" on dahligarciamarquez`
+      : 'Browse all stories and experiences on dahligarciamarquez'
+    
+    setDocumentTitle(pageTitle)
+    setMetaDescription(pageDescription)
+    
     setLoading(true)
     const result = queryPosts({ q, tag, page, pageSize: 9 })
     setPosts(result.items)

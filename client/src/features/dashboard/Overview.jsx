@@ -10,13 +10,18 @@ const Overview = () => {
   const [posts, setPosts] = useState([])
   const [health, setHealth] = useState(null)
   const [dbNow, setDbNow] = useState(null)
+  const [adminHealth, setAdminHealth] = useState(null)
   const [loading, setLoading] = useState(true)
   const [healthLoading, setHealthLoading] = useState(true)
   const [dbLoading, setDbLoading] = useState(true)
+  const [adminHealthLoading, setAdminHealthLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     fetchData()
+    checkHealth()
+    checkDbNow()
+    checkAdminHealth()
   }, [])
 
   const fetchData = async () => {
@@ -57,6 +62,19 @@ const Overview = () => {
       setDbNow({ error: err.message })
     } finally {
       setDbLoading(false)
+    }
+  }
+
+  const checkAdminHealth = async () => {
+    try {
+      setAdminHealthLoading(true)
+      const healthData = await apiAdminGet('/api/admin/health')
+      setAdminHealth(healthData)
+    } catch (err) {
+      console.error('Admin health check failed:', err)
+      setAdminHealth({ error: err.message })
+    } finally {
+      setAdminHealthLoading(false)
     }
   }
 
@@ -114,6 +132,51 @@ const Overview = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* System Health */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h2 className="text-lg font-semibold mb-4">System Health</h2>
+          {adminHealthLoading ? (
+            <div className="text-gray-500">Loading health data...</div>
+          ) : adminHealth?.error ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded">
+              <h3 className="font-medium text-red-800 mb-2">Health Check Failed</h3>
+              <p className="text-sm text-red-700">{adminHealth.error}</p>
+            </div>
+          ) : adminHealth ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* API Health */}
+              <KpiCard
+                title="API Status"
+                value={adminHealth.api?.status || 'unknown'}
+                subtitle={`Version: ${adminHealth.api?.version || 'unknown'}`}
+                variant={adminHealth.api?.status === 'ok' ? 'success' : 'error'}
+              />
+              
+              {/* Database Health */}
+              <KpiCard
+                title="Database"
+                value={adminHealth.db?.status || 'unknown'}
+                subtitle={
+                  adminHealth.db?.postsCount !== null 
+                    ? `${adminHealth.db.postsCount} posts` 
+                    : 'Connection failed'
+                }
+                variant={adminHealth.db?.status === 'ok' ? 'success' : 'error'}
+              />
+              
+              {/* Storage Info */}
+              <KpiCard
+                title="Storage"
+                value={adminHealth.storage?.driver || 'unknown'}
+                subtitle="Storage driver"
+                variant="info"
+              />
+            </div>
+          ) : (
+            <div className="text-gray-500">No health data available</div>
+          )}
         </div>
 
         {/* Recent Posts */}

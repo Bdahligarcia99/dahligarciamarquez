@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useAdmin } from "../features/admin/AdminProvider";
+import { SITE_NAME } from "../config/branding";
 import "../styles/nav.css";
 
 export default function Navbar({ onRequestAdminModal }) {
@@ -48,7 +49,7 @@ export default function Navbar({ onRequestAdminModal }) {
           onPointerCancel={onUp}
           onPointerLeave={onUp}
         >
-          My Stories
+          {SITE_NAME}
         </Link>
 
         <nav className="links-desktop" aria-label="Primary">

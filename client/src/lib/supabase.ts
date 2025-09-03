@@ -41,6 +41,8 @@ export interface Post {
   slug: string
   content_rich?: any // JSON content from rich editor
   content_text?: string // Plain text for search
+  content_html?: string // Sanitized HTML content
+  reading_time?: number // Estimated reading time in minutes
   excerpt?: string
   cover_image_url?: string
   status: 'draft' | 'published' | 'archived'

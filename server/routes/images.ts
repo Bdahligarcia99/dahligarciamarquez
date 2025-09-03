@@ -2,9 +2,11 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../auth/supabaseAdmin.js'
 import { requireUser } from '../middleware/requireUser.js'
+import { requireAdmin } from '../src/middleware/requireAdmin.js'
 import { requireAdminOrUser, AdminOrUserRequest } from '../src/middleware/requireAdminOrUser.js'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 import { parseMultipartForm, MulterRequest } from '../src/middleware/multipart.js'
+import { saveImage } from '../src/storage/index.js'
 import { 
   validateAltText, 
   validateImageTitle, 
@@ -27,7 +29,126 @@ import {
   HTTP_STATUS
 } from '../src/utils/responses.js'
 
+// Image processing dependencies
+let sharp: any
+let imageSize: any
+
+try {
+  sharp = (await import('sharp')).default
+} catch {
+  console.warn('Sharp not available, falling back to image-size')
+  try {
+    imageSize = (await import('image-size')).default
+  } catch {
+    console.error('Neither sharp nor image-size available for image processing')
+  }
+}
+
 const router = Router()
+
+/**
+ * Validate uploaded image file
+ */
+function validateImageUpload(file: Express.Multer.File | undefined): string | null {
+  if (!file) {
+    return 'No image file provided'
+  }
+
+  const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/webp']
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`
+  }
+
+  const maxSize = 5 * 1024 * 1024 // 5MB
+  if (file.size > maxSize) {
+    return `File too large. Maximum size: ${maxSize / 1024 / 1024}MB`
+  }
+
+  return null
+}
+
+/**
+ * Get image dimensions from buffer
+ */
+async function getImageDimensions(buffer: Buffer): Promise<{ width: number; height: number }> {
+  if (sharp) {
+    try {
+      const metadata = await sharp(buffer).metadata()
+      return {
+        width: metadata.width || 0,
+        height: metadata.height || 0
+      }
+    } catch (error) {
+      console.warn('Sharp failed to get dimensions:', error)
+    }
+  }
+
+  if (imageSize) {
+    try {
+      const dimensions = imageSize(buffer)
+      return {
+        width: dimensions.width || 0,
+        height: dimensions.height || 0
+      }
+    } catch (error) {
+      console.warn('image-size failed to get dimensions:', error)
+    }
+  }
+
+  // Fallback if both fail
+  return { width: 0, height: 0 }
+}
+
+/**
+ * Get file extension from mime type
+ */
+function getExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/png':
+      return 'png'
+    case 'image/jpeg':
+      return 'jpg'
+    case 'image/webp':
+      return 'webp'
+    default:
+      return 'jpg'
+  }
+}
+
+// POST /api/uploads/image - Upload image file (admin only)
+router.post('/uploads/image', parseMultipartForm, requireAdmin, async (req: MulterRequest, res) => {
+  try {
+    const file = req.file
+
+    // Validate the uploaded file
+    const validationError = validateImageUpload(file)
+    if (validationError) {
+      const statusCode = validationError.includes('Invalid file type') ? 415 : 
+                        validationError.includes('too large') ? 413 : 400
+      return res.status(statusCode).json({ error: validationError })
+    }
+
+    // Get image dimensions
+    const { width, height } = await getImageDimensions(file!.buffer)
+
+    // Get file extension
+    const ext = getExtensionFromMimeType(file!.mimetype)
+
+    // Save image using storage layer
+    const { url } = await saveImage(file!.buffer, ext)
+
+    // Return success response
+    res.status(200).json({
+      url,
+      width,
+      height
+    })
+
+  } catch (error) {
+    console.error('Image upload error:', error)
+    res.status(500).json({ error: 'Failed to upload image' })
+  }
+})
 
 // POST /api/images - Upload image file with metadata
 router.post('/', parseMultipartForm, requireAdminOrUser, async (req: MulterRequest & AdminOrUserRequest, res) => {

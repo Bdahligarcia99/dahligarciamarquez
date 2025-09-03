@@ -66,6 +66,9 @@ app.use(cors(corsOptions))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Static file serving for uploads (development)
+app.use('/uploads', express.static(join(__dirname, '..', 'uploads')))
+
 // Root route
 app.get('/', (req, res) => {
   res.json({

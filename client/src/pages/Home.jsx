@@ -1,12 +1,20 @@
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { SITE_NAME } from '../config/branding'
+import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const Home = () => {
+  useEffect(() => {
+    setDocumentTitle()
+    setMetaDescription(`Personal stories and experiences from ${SITE_NAME}. Dive into tales that inspire, challenge, and connect us all.`)
+  }, [])
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Hero Section */}
       <div className="text-center py-16">
         <h1 className="text-5xl font-serif font-bold text-secondary-900 mb-6">
-          Welcome to My Stories
+          Welcome to {SITE_NAME}
         </h1>
         <p className="text-xl text-secondary-600 mb-8 max-w-2xl mx-auto leading-relaxed">
           A personal collection of thoughts, experiences, and stories from my journey. 

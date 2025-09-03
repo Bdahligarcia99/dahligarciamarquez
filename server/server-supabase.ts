@@ -3,12 +3,18 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 // Import routes
 import authRoutes from './routes/auth.js'
 import labelsRoutes from './routes/labels.js'
 import postsRoutes from './routes/posts.js'
 import imagesRoutes from './routes/images.js'
+import adminRoutes from './routes/admin.js'
+
+// Import middleware
+import { comingSoonMiddleware } from './src/middleware/comingSoon.js'
 
 const app = express()
 const PORT = config.server.port
@@ -59,6 +65,11 @@ app.use(cors(corsOptions))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
+// Static file serving for uploads (development)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
+
 // Root route
 app.get('/', (req, res) => {
   res.json({
@@ -72,12 +83,13 @@ app.get('/', (req, res) => {
       "/api/labels",
       "/api/posts",
       "/api/posts/admin",
-      "/api/images"
+      "/api/images",
+      "/api/admin"
     ]
   })
 })
 
-// Health check endpoint
+// Health check endpoint (before Coming Soon middleware)
 app.get('/healthz', (req, res) => {
   res.json({ 
     ok: true, 
@@ -86,11 +98,15 @@ app.get('/healthz', (req, res) => {
   })
 })
 
+// Coming Soon middleware - blocks non-admin traffic when enabled
+app.use(comingSoonMiddleware)
+
 // API routes
 app.use('/api/auth', authRoutes)
 app.use('/api/labels', labelsRoutes)
 app.use('/api/posts', postsRoutes)
 app.use('/api/images', imagesRoutes)
+app.use('/api/admin', adminRoutes)
 
 // Legacy compatibility - redirect old admin ping
 app.get('/api/admin/ping', (req, res) => {

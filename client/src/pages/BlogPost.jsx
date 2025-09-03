@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { postsAPI } from '../utils/api'
 import { formatDate } from '../utils/formatDate'
+import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const BlogPost = () => {
   const { slug } = useParams()
@@ -17,12 +18,20 @@ const BlogPost = () => {
         const data = await postsAPI.getPostBySlug(slug)
         setPost(data)
         setError(null)
+        
+        // Set page metadata when post is loaded
+        if (data) {
+          setDocumentTitle(data.title)
+          setMetaDescription(data.excerpt || `Read "${data.title}" and more stories on dahligarciamarquez`)
+        }
       } catch (err) {
         console.error('Failed to fetch post:', err)
         if (err.response?.status === 404) {
           setError('Story not found')
+          setDocumentTitle('Story Not Found')
         } else {
           setError('Failed to load story. Please try again later.')
+          setDocumentTitle('Error Loading Story')
         }
       } finally {
         setLoading(false)

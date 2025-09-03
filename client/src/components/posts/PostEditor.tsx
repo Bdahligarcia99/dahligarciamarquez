@@ -1,8 +1,9 @@
 // Post Editor Component
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { Label, getSessionToken } from '../../lib/supabase'
-import RichTextEditor from '../editor/RichTextEditor'
+import RichTextEditor, { RichTextEditorRef } from '../editor/RichTextEditor'
+import { uploadImage } from '../../utils/uploadImage'
 
 interface PostEditorProps {
   postId?: string
@@ -12,8 +13,9 @@ interface PostEditorProps {
 
 export default function PostEditor({ postId, onSave, onCancel }: PostEditorProps) {
   const { profile } = useAuth()
+  const editorRef = useRef<RichTextEditorRef>(null)
   const [title, setTitle] = useState('')
-  const [content, setContent] = useState(null)
+  const [content, setContent] = useState<{ json: any; html: string } | null>(null)
   const [excerpt, setExcerpt] = useState('')
   const [coverImageUrl, setCoverImageUrl] = useState('')
   const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
@@ -22,6 +24,9 @@ export default function PostEditor({ postId, onSave, onCancel }: PostEditorProps
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingImageInserts, setPendingImageInserts] = useState<{ file: File; alt: string }[]>([])
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const fetchLabels = async () => {
     try {
@@ -49,7 +54,18 @@ export default function PostEditor({ postId, onSave, onCancel }: PostEditorProps
 
       const post = await response.json()
       setTitle(post.title || '')
-      setContent(post.content_rich)
+      
+      // Handle backward compatibility for content formats
+      if (post.content_html) {
+        // Prefer HTML format if available
+        setContent({ json: post.content_rich || null, html: post.content_html })
+      } else if (post.content_rich) {
+        // Fallback to rich content (JSON format)
+        setContent({ json: post.content_rich, html: '' })
+      } else {
+        setContent(null)
+      }
+      
       setExcerpt(post.excerpt || '')
       setCoverImageUrl(post.cover_image_url || '')
       setStatus(post.status || 'draft')
@@ -76,7 +92,8 @@ export default function PostEditor({ postId, onSave, onCancel }: PostEditorProps
       const token = await getSessionToken()
       const postData = {
         title: title.trim(),
-        content_rich: content,
+        content_rich: content?.json || null,
+        content_html: content?.html || null,
         excerpt: excerpt.trim() || null,
         cover_image_url: coverImageUrl.trim() || null,
         status,
@@ -116,6 +133,37 @@ export default function PostEditor({ postId, onSave, onCancel }: PostEditorProps
         ? prev.filter(id => id !== labelId)
         : [...prev, labelId]
     )
+  }
+
+    const handleInsertImage = async (payload: { file: File; alt: string }) => {
+    setUploadingImage(true)
+    setUploadError(null)
+
+    try {
+      // Upload the image
+      const uploadResult = await uploadImage(payload.file)
+      
+      // Insert the figure into the editor
+      editorRef.current?.insertFigure({
+        src: uploadResult.url,
+        alt: payload.alt,
+        caption: '' // Empty caption by default
+      })
+
+      console.log('Image uploaded and inserted:', {
+        fileName: payload.file.name,
+        url: uploadResult.url,
+        dimensions: `${uploadResult.width}x${uploadResult.height}`,
+        alt: payload.alt
+      })
+
+    } catch (error) {
+      console.error('Image upload failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload image'
+      setUploadError(errorMessage)
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   useEffect(() => {
@@ -199,9 +247,31 @@ export default function PostEditor({ postId, onSave, onCancel }: PostEditorProps
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Content *
           </label>
+          
+          {/* Upload Status */}
+          {uploadingImage && (
+            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
+              <span className="inline-flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Uploading image...
+              </span>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+              <span className="font-medium">Upload failed:</span> {uploadError}
+            </div>
+          )}
+          
           <RichTextEditor
-            content={content}
+            ref={editorRef}
+            content={content?.json || content}
             onChange={setContent}
+            onInsertImage={handleInsertImage}
             className="min-h-[400px]"
           />
         </div>

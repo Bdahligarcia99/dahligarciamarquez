@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import PostCard from '../components/PostCard'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { postsAPI } from '../utils/api'
+import { SITE_NAME } from '../config/branding'
+import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const BlogList = () => {
   const [posts, setPosts] = useState([])
@@ -9,6 +11,10 @@ const BlogList = () => {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    // Set page metadata
+    setDocumentTitle('Stories')
+    setMetaDescription(`A collection of personal experiences, thoughts, and reflections from ${SITE_NAME}. Each story is a piece of my journey worth sharing.`)
+    
     const fetchPosts = async () => {
       try {
         setLoading(true)
@@ -55,7 +61,7 @@ const BlogList = () => {
       {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-serif font-bold text-secondary-900 mb-4">
-          My Stories
+          {SITE_NAME}
         </h1>
         <p className="text-lg text-secondary-600 max-w-2xl mx-auto">
           A collection of personal experiences, thoughts, and reflections. 

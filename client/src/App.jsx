@@ -10,6 +10,7 @@ import Dashboard from './features/dashboard/Dashboard'
 import RequireAdmin from './features/dashboard/RequireAdmin'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
+import Footer from './components/Footer'
 import Home from './pages/Home'
 import BlogList from './pages/BlogList'
 import BlogPost from './pages/BlogPost'
@@ -40,12 +41,15 @@ function AppShell() {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
 
+  // Check if current route is dashboard (admin area)
+  const isDashboardRoute = location.pathname.startsWith('/dashboard')
+
   return (
     <>
-      <div className="min-h-screen bg-secondary-50">
+      <div className="min-h-screen bg-secondary-50 flex flex-col">
         <Navbar onRequestAdminModal={() => setModalOpen(true)} />
 
-        <main className="container mx-auto px-4 py-8 max-w-6xl">
+        <main className="container mx-auto px-4 py-8 max-w-6xl flex-1">
           
           <Routes>
             <Route path="/" element={<Home />} />
@@ -70,6 +74,9 @@ function AppShell() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
+
+        {/* Footer - only show on public routes */}
+        {!isDashboardRoute && <Footer />}
       </div>
       
       <AdminTokenModal open={modalOpen} onClose={() => setModalOpen(false)} />
