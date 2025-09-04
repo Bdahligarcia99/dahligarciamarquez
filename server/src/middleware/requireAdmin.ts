@@ -1,10 +1,33 @@
 import { Request, Response, NextFunction } from 'express'
 import { SERVER_ADMIN_TOKEN } from '../config'
+import { timingSafeEqual } from 'crypto'
+
+// Log warning at boot if admin token is missing
+if (!SERVER_ADMIN_TOKEN) {
+  console.warn('⚠️  SERVER_ADMIN_TOKEN is not configured. Admin endpoints will be disabled (503).')
+}
+
+/**
+ * Constant-time string comparison to prevent timing attacks
+ */
+function constantTimeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false
+  }
+  
+  try {
+    const bufferA = Buffer.from(a, 'utf8')
+    const bufferB = Buffer.from(b, 'utf8')
+    return timingSafeEqual(bufferA, bufferB)
+  } catch {
+    return false
+  }
+}
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // Check if server admin token is configured
   if (!SERVER_ADMIN_TOKEN) {
-    res.status(500).json({ error: "Server admin token not configured." })
+    res.status(503).json({ error: "Admin functionality is disabled" })
     return
   }
 
@@ -21,7 +44,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     }
   }
 
-  // Check X-Admin-Token header if no Bearer token found - exact match
+  // Check X-Admin-Token header if no Bearer token found (for curl convenience)
   if (!token) {
     const xAdminToken = req.get('x-admin-token') || req.get('X-Admin-Token')
     if (xAdminToken) {
@@ -29,8 +52,8 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     }
   }
 
-  // Validate token
-  if (!token || token !== SERVER_ADMIN_TOKEN) {
+  // Validate token using constant-time comparison
+  if (!token || !constantTimeCompare(token, SERVER_ADMIN_TOKEN)) {
     res.status(401).json({ error: "Unauthorized" })
     return
   }

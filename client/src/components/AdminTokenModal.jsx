@@ -21,8 +21,8 @@ export default function AdminTokenModal({ open, onClose, redirectToDashboard = t
     setAdminToken(val.trim());
     
     try {
-      const ok = await apiAdminGet("/api/admin/ping");
-      if (ok?.ok) {
+      const response = await apiAdminGet("/api/admin/health");
+      if (response?.ok) {
         refreshAdmin();
         if (redirectToDashboard) nav("/dashboard");
         onClose();

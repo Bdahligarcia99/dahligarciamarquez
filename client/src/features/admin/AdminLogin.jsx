@@ -20,8 +20,8 @@ export default function AdminLogin() {
     setAdminToken(val.trim());
     
     try {
-      const ok = await apiAdminGet("/api/admin/ping");
-      if (ok?.ok) {
+      const response = await apiAdminGet("/api/admin/health");
+      if (response?.ok) {
         refreshAdmin();
         nav("/dashboard");
         return;

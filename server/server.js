@@ -58,6 +58,7 @@ const corsOptions = {
     callback(ok ? null : new Error('Not allowed by CORS'), ok);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'X-Admin-Token', 'Content-Type', 'Accept', 'X-Requested-With'],
   credentials: true
 };
 
@@ -121,9 +122,13 @@ app.get('/api/db/now', async (req, res, next) => {
   }
 })
 
-// Admin verification endpoint
-app.get('/api/admin/ping', requireAdmin, (req, res) => {
-  res.json({ ok: true })
+// Admin health check endpoint
+app.get('/api/admin/health', requireAdmin, (req, res) => {
+  res.json({ 
+    ok: true, 
+    version: packageJson.version,
+    ts: new Date().toISOString()
+  })
 })
 
 // Debug endpoint for auth troubleshooting (development only)

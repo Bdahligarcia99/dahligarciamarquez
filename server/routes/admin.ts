@@ -53,46 +53,13 @@ router.put('/coming-soon', requireAdmin, (req, res) => {
   }
 })
 
-// GET /api/admin/health - System health check
-router.get('/health', requireAdmin, async (req, res) => {
-  try {
-    const healthData = {
-      api: {
-        status: 'ok',
-        version: packageVersion
-      },
-      db: {
-        status: 'ok',
-        postsCount: null as number | null
-      },
-      storage: {
-        driver: process.env.STORAGE_DRIVER || 'local'
-      }
-    }
-
-    // Test database connection and get posts count
-    try {
-      const { count, error } = await supabaseAdmin
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-      
-      if (error) {
-        throw error
-      }
-      
-      healthData.db.status = 'ok'
-      healthData.db.postsCount = count || 0
-    } catch (dbError) {
-      console.error('Database health check failed:', dbError)
-      healthData.db.status = 'down'
-      healthData.db.postsCount = null
-    }
-
-    res.json(healthData)
-  } catch (error) {
-    console.error('Error performing health check:', error)
-    res.status(500).json({ error: 'Failed to perform health check' })
-  }
+// GET /api/admin/health - Admin health check endpoint
+router.get('/health', requireAdmin, (req, res) => {
+  res.json({
+    ok: true,
+    version: packageVersion,
+    ts: new Date().toISOString()
+  })
 })
 
 export default router

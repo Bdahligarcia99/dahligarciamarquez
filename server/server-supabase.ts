@@ -112,9 +112,9 @@ app.use('/api/posts', postsRoutes)
 app.use('/api/images', imagesRoutes)
 app.use('/api/admin', adminRoutes)
 
-// Legacy compatibility - redirect old admin ping
+// Legacy compatibility - redirect old admin ping to new health endpoint
 app.get('/api/admin/ping', (req, res) => {
-  res.redirect(301, '/api/auth/db-ping')
+  res.redirect(301, '/api/admin/health')
 })
 
 // 404 handler - convert unmatched routes to a 404 error

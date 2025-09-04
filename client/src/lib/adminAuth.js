@@ -1,15 +1,15 @@
 // client/src/lib/adminAuth.js
 
 export function getAdminToken() {
-  return localStorage.getItem("ADMIN_TOKEN");
+  return localStorage.getItem("adminToken");
 }
 
 export function setAdminToken(token) {
-  localStorage.setItem("ADMIN_TOKEN", token);
+  localStorage.setItem("adminToken", token);
 }
 
 export function clearAdminToken() {
-  localStorage.removeItem("ADMIN_TOKEN");
+  localStorage.removeItem("adminToken");
 }
 
 export function ensureAdminToken() {
@@ -27,4 +27,14 @@ export function ensureAdminToken() {
 export function adminHeaders() {
   const token = getAdminToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// Debug helper for clearing admin token
+if (typeof window !== 'undefined') {
+  window.Admin = {
+    clear() {
+      clearAdminToken();
+      console.log('Admin token cleared');
+    }
+  };
 }

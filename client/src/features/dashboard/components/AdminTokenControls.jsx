@@ -22,10 +22,12 @@ export default function AdminTokenControls({ onAfter }) {
           clearAdminToken(); 
           refreshAdmin(); 
           onAfter?.(); 
+          // Reload page to ensure complete logout
+          window.location.reload();
         }}
         className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
       >
-        Reset Token
+        Log Out
       </button>
     </div>
   );

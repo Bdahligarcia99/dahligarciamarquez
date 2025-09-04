@@ -11,7 +11,7 @@ export function AdminProvider({ children }) {
   const check = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiAdminGet("/api/admin/ping");
+      const res = await apiAdminGet("/api/admin/health");
       setIsAdmin(!!res?.ok);
     } catch {
       setIsAdmin(false);
