@@ -1,7 +1,7 @@
 // Labels API routes
 import { Router } from 'express'
-import { supabaseAdmin } from '../auth/supabaseAdmin.js'
-import { requireAdmin } from '../middleware/requireAdmin.js'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
+import { requireAdmin } from '../middleware/requireAdmin.ts'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 
 const router = Router()

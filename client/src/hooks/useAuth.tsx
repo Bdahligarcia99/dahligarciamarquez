@@ -1,7 +1,7 @@
 // Authentication hook for Supabase
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase, Profile } from '../lib/supabase'
+import { supabase, getSupabaseClient, isSupabaseConfigured, Profile } from '../lib/supabase'
 
 interface AuthContextType {
   user: User | null
@@ -36,8 +36,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Fetch user profile from database
   const fetchProfile = async (userId: string) => {
+    const client = getSupabaseClient()
+    if (!client) return null
+    
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -57,8 +60,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Create profile for new users
   const createProfile = async (user: User) => {
+    const client = getSupabaseClient()
+    if (!client) return null
+    
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('profiles')
         .insert({
           id: user.id,
@@ -81,20 +87,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   useEffect(() => {
+    // If Supabase is not configured, set loading to false and return
+    if (!isSupabaseConfigured) {
+      setLoading(false)
+      return
+    }
+
+    const client = getSupabaseClient()
+    if (!client) {
+      setLoading(false)
+      return
+    }
+
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        setUser(session.user)
-        setSession(session)
+      try {
+        const { data: { session } } = await client.auth.getSession()
         
-        // Fetch or create profile
-        let userProfile = await fetchProfile(session.user.id)
-        if (!userProfile) {
-          userProfile = await createProfile(session.user)
+        if (session?.user) {
+          setUser(session.user)
+          setSession(session)
+          
+          // Fetch or create profile
+          let userProfile = await fetchProfile(session.user.id)
+          if (!userProfile) {
+            userProfile = await createProfile(session.user)
+          }
+          setProfile(userProfile)
         }
-        setProfile(userProfile)
+      } catch (error) {
+        console.warn('Failed to get initial session:', error)
       }
       
       setLoading(false)
@@ -103,7 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getInitialSession()
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = client.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email)
         
@@ -133,7 +155,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const client = getSupabaseClient()
+    if (!client) {
+      return { error: new Error('Supabase not configured') }
+    }
+    
+    const { error } = await client.auth.signInWithPassword({
       email,
       password
     })
@@ -141,7 +168,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const signUp = async (email: string, password: string, displayName?: string) => {
-    const { error } = await supabase.auth.signUp({
+    const client = getSupabaseClient()
+    if (!client) {
+      return { error: new Error('Supabase not configured') }
+    }
+    
+    const { error } = await client.auth.signUp({
       email,
       password,
       options: {
@@ -154,11 +186,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    const client = getSupabaseClient()
+    if (!client) return
+    await client.auth.signOut()
   }
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const client = getSupabaseClient()
+    if (!client) {
+      return { error: new Error('Supabase not configured') }
+    }
+    
+    const { error } = await client.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`
     })
     return { error }

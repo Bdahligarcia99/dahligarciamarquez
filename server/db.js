@@ -34,7 +34,8 @@ export async function initDb() {
       CREATE TABLE IF NOT EXISTS posts (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
-        body TEXT NOT NULL,
+        content_text TEXT,
+        content_rich JSONB,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
@@ -44,6 +45,32 @@ export async function initDb() {
       ALTER TABLE posts 
       ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'
     `)
+    
+    // Add author_id column if it doesn't exist (for compatibility with Supabase schema)
+    await q(`
+      ALTER TABLE posts 
+      ADD COLUMN IF NOT EXISTS author_id TEXT DEFAULT '14aefc2f-74df-4611-accf-8e36f1edbae7'
+    `)
+    
+    // Add content_html column if it doesn't exist (for rich text support)
+    await q(`
+      ALTER TABLE posts 
+      ADD COLUMN IF NOT EXISTS content_html TEXT
+    `)
+    
+    // Add excerpt column if it doesn't exist
+    await q(`
+      ALTER TABLE posts 
+      ADD COLUMN IF NOT EXISTS excerpt TEXT
+    `)
+    
+    // Add cover_image_url column if it doesn't exist
+    await q(`
+      ALTER TABLE posts 
+      ADD COLUMN IF NOT EXISTS cover_image_url TEXT
+    `)
+    
+    // Migration logic removed - body column is no longer supported
     
     // Create index for performance if it doesn't exist
     await q(`

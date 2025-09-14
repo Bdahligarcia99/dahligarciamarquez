@@ -2,11 +2,21 @@ import { config } from './src/config.ts'
 import express from 'express'
 import cors from 'cors'
 import { initDb, q, closeDb } from './db.js'
-import { requireAdmin } from './src/middleware/requireAdmin.js'
-import { query } from './src/db.js'
+import { requireAdmin } from './src/middleware/requireAdmin.ts'
+import { query } from './src/db.ts'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+
+// Import admin router
+import adminRoutes from './routes/admin.ts'
+import imagesRoutes from './routes/images.ts'
+import storageRoutes from './routes/storage.ts'
+import compressionRoutes from './routes/compression.ts'
+
+// Import storage info for boot logging
+import { storageInfo } from './src/storage/index.ts'
+import { isSupabaseAdminConfigured } from './auth/supabaseAdmin.ts'
 
 // Get package.json for version endpoint
 const __filename = fileURLToPath(import.meta.url)
@@ -15,6 +25,14 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'ut
 
 const app = express()
 const PORT = config.server.port
+
+// Top-level CORS origins configuration
+const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const PROD_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production' ? PROD_ORIGINS : DEV_ORIGINS;
 
 // Request logging middleware (before CORS/body-parsing)
 app.use((req, res, next) => {
@@ -28,47 +46,48 @@ app.use((req, res, next) => {
   next();
 });
 
-// Environment-driven CORS configuration with wildcard support
-const toMatcher = (s) => {
-  const v = s.trim();
-  if (!v) return null;
-  if (v.startsWith('*.')) {
-    // turn "*.foo.com" into /\.foo\.com$/ regex
-    const tail = v.slice(1).replace(/\./g, '\\.');
-    return new RegExp(`${tail}$`);
-  }
-  return v; // exact string match
-};
+// Dev-only debug header middleware
+if (config.server.nodeEnv === 'development') {
+  app.use((req, res, next) => {
+    const debugUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    res.set('X-Debug-Server-Url', debugUrl);
+    next();
+  });
+}
 
-const defaults = [
-  'https://dahligarciamarquez.com',
-  '*.vercel.app',
-  'http://localhost:5173'
-];
-
-const raw = process.env.ALLOWED_ORIGINS || defaults.join(',');
-const allowedOrigins = raw.split(',').map(toMatcher).filter(Boolean);
-
+// CORS configuration
 const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // allow curl/Postman
-    const ok = allowedOrigins.some(o =>
-      o instanceof RegExp ? o.test(origin) : o === origin
-    );
-    callback(ok ? null : new Error('Not allowed by CORS'), ok);
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // allow curl / same-origin tools
+    const ok = ALLOWED_ORIGINS.some(o => o instanceof RegExp ? o.test(origin) : o === origin);
+    return cb(ok ? null : new Error('Not allowed by CORS'), ok);
   },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'X-Admin-Token', 'Content-Type', 'Accept', 'X-Requested-With'],
-  credentials: true
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Authorization','X-Admin-Token','Content-Type','Accept','X-Requested-With'],
+  exposedHeaders: ['X-Debug-Server-Url'],
+  optionsSuccessStatus: 204,
+  credentials: false,
 };
 
 // Middleware
-app.use(cors(corsOptions))
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// Dev-only OPTIONS logger
+if (config.server.nodeEnv === 'development') {
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      console.log(`[PREFLIGHT] ${req.method} ${req.path} from ${req.get('origin') || 'unknown'}`);
+    }
+    next();
+  });
+}
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // Static file serving for uploads (development)
-app.use('/uploads', express.static(join(__dirname, '..', 'uploads')))
+app.use('/uploads', express.static(join(__dirname, 'uploads')))
 
 // Root route
 app.get('/', (req, res) => {
@@ -122,17 +141,107 @@ app.get('/api/db/now', async (req, res, next) => {
   }
 })
 
-// Admin health check endpoint
-app.get('/api/admin/health', requireAdmin, (req, res) => {
-  res.json({ 
-    ok: true, 
-    version: packageJson.version,
-    ts: new Date().toISOString()
-  })
-})
+// Mount API routes
+app.use('/api/storage', storageRoutes)
+app.use('/api/images', imagesRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/compression', compressionRoutes)
+console.log('Mounted storage: /api/storage/health')
+console.log('Mounted images: /api/images/uploads/image')
+console.log('Mounted admin: /api/admin/health')
+console.log('Mounted compression: /api/compression/settings')
 
-// Debug endpoint for auth troubleshooting (development only)
+// Debug endpoints (development only)
 if (config.server.nodeEnv === 'development') {
+  // Route list endpoint for verification
+  app.get('/__debug/routes', (req, res) => {
+    const routes = []
+    
+    // Extract routes from Express app
+    function extractRoutes(stack, basePath = '') {
+      stack.forEach(layer => {
+        if (layer.route) {
+          // Regular route
+          const methods = Object.keys(layer.route.methods)
+          methods.forEach(method => {
+            routes.push(`${method.toUpperCase()} ${basePath}${layer.route.path}`)
+          })
+        } else if (layer.name === 'router') {
+          // Router middleware
+          const routerPath = layer.regexp.source
+            .replace(/\\\//g, '/')
+            .replace(/\$.*/, '')
+            .replace(/\^/, '')
+            .replace(/\?\(\?\=/, '')
+          
+          if (layer.handle && layer.handle.stack) {
+            extractRoutes(layer.handle.stack, routerPath)
+          }
+        }
+      })
+    }
+    
+    extractRoutes(app._router.stack)
+    
+    // Add known routes manually since router inspection is complex
+    routes.push('GET /api/storage/health')
+    routes.push('POST /api/images/uploads/image')
+    routes.push('GET /api/admin/health')
+    routes.push('GET /api/admin/coming-soon')
+    routes.push('PUT /api/admin/coming-soon')
+    
+    res.json(routes.sort())
+  })
+
+  // Database diagnostics endpoint
+  app.get('/__debug/db', async (req, res) => {
+    try {
+      let provider = 'unknown'
+      let hostMasked = 'unknown'
+      let dbName = 'unknown'
+      let counts = {}
+
+      // Determine provider and extract connection info
+      const dbUrl = process.env.DATABASE_URL || ''
+      if (dbUrl.includes('supabase')) {
+        provider = 'supabase'
+      } else if (dbUrl.includes('postgres') || dbUrl.includes('postgresql')) {
+        provider = 'postgres'
+      }
+
+      // Extract and mask host
+      try {
+        const url = new URL(dbUrl)
+        hostMasked = url.hostname.length > 8 
+          ? url.hostname.substring(0, 8) + '****' + url.hostname.substring(url.hostname.length - 4)
+          : url.hostname.substring(0, 6) + '****'
+        dbName = url.pathname.substring(1) || 'unknown' // Remove leading slash
+      } catch (e) {
+        // Invalid URL, keep defaults
+      }
+
+      // Get counts if requested
+      if (req.query.counts === '1') {
+        try {
+          const result = await query('SELECT COUNT(*) as count FROM posts')
+          counts.posts = parseInt(result.rows[0].count, 10)
+        } catch (e) {
+          counts.posts = 'error'
+        }
+      }
+
+      res.json({
+        provider,
+        hostMasked,
+        dbName,
+        counts
+      })
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get DB diagnostics' })
+    }
+  })
+
+  // Auth troubleshooting endpoint
   app.get('/api/debug/auth', (req, res) => {
     const hasTokenConfigured = Boolean(process.env.SERVER_ADMIN_TOKEN)
     
@@ -164,10 +273,10 @@ app.get('/api/posts', requireAdmin, async (req, res, next) => {
     const params = []
     const whereConditions = []
     
-    // Text search on title OR body (case-insensitive)
+    // Text search on title OR content_text (case-insensitive)
     if (searchQuery) {
       params.push(`%${searchQuery}%`)
-      whereConditions.push(`(title ILIKE $${params.length} OR body ILIKE $${params.length})`)
+      whereConditions.push(`(title ILIKE $${params.length} OR content_text ILIKE $${params.length})`)
     }
     
     // Status filter
@@ -179,7 +288,7 @@ app.get('/api/posts', requireAdmin, async (req, res, next) => {
     const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : ''
     
     // Get paginated items
-    const itemsQuery = `SELECT * FROM posts ${whereClause} ORDER BY created_at DESC LIMIT ${l} OFFSET ${offset}`
+    const itemsQuery = `SELECT id, title, content_text, status, created_at, updated_at FROM posts ${whereClause} ORDER BY created_at DESC LIMIT ${l} OFFSET ${offset}`
     const { rows: items } = await q(itemsQuery, params)
     
     // Get total count for same filters
@@ -196,7 +305,7 @@ app.get('/api/posts', requireAdmin, async (req, res, next) => {
 app.get('/api/posts/:id', requireAdmin, async (req, res, next) => {
   try {
     const { id } = req.params
-    const result = await q('SELECT * FROM posts WHERE id = $1', [id])
+    const result = await q('SELECT id, title, content_text, content_rich, content_html, excerpt, cover_image_url, status, created_at, updated_at FROM posts WHERE id = $1', [id])
     
     if (result.rows.length === 0) {
       const err = new Error('Post not found')
@@ -213,17 +322,24 @@ app.get('/api/posts/:id', requireAdmin, async (req, res, next) => {
 // Create new post (admin only)
 app.post('/api/posts', requireAdmin, async (req, res, next) => {
   try {
-    const { title, body, status = 'published' } = req.body
+    const { title, content_text, content_rich, content_html, excerpt, cover_image_url, status = 'published', author_id } = req.body
+    
+    // Use content_text for post content, but also accept rich content
+    const contentText = content_text
+    
+    // TODO: Temporary fix - use default test author if author_id is missing
+    // This should be removed once client-side author_id support is added
+    const authorId = author_id || '14aefc2f-74df-4611-accf-8e36f1edbae7' // Supabase test user UUID
     
     // Validation
-    if (!title || !body) {
-      const err = new Error('Title and body are required')
+    if (!title || !contentText) {
+      const err = new Error('Title and content are required')
       err.status = 400
       return next(err)
     }
     
-    if (typeof title !== 'string' || typeof body !== 'string') {
-      const err = new Error('Title and body must be strings')
+    if (typeof title !== 'string' || typeof contentText !== 'string') {
+      const err = new Error('Title and content must be strings')
       err.status = 400
       return next(err)
     }
@@ -235,8 +351,8 @@ app.post('/api/posts', requireAdmin, async (req, res, next) => {
     }
     
     const result = await q(
-      'INSERT INTO posts (title, body, status) VALUES ($1, $2, $3) RETURNING *',
-      [title.trim(), body.trim(), status]
+      'INSERT INTO posts (title, content_text, content_rich, content_html, excerpt, cover_image_url, status, author_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, title, content_text, content_rich, content_html, excerpt, cover_image_url, status, author_id, created_at, updated_at',
+      [title.trim(), contentText?.trim() || null, content_rich || null, content_html || null, excerpt?.trim() || null, cover_image_url?.trim() || null, status, authorId]
     )
     
     res.status(201).json(result.rows[0])
@@ -248,7 +364,7 @@ app.post('/api/posts', requireAdmin, async (req, res, next) => {
 // Update post (partial) (admin only)
 app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { title, body, status } = req.body || {}
+    const { title, content_text, content_rich, content_html, excerpt, cover_image_url, status } = req.body || {}
     const updates = []
     const params = []
     
@@ -257,9 +373,25 @@ app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
       params.push(title)
       updates.push(`title = $${params.length}`)
     }
-    if (body !== undefined) {
-      params.push(body)
-      updates.push(`body = $${params.length}`)
+    if (content_text !== undefined) {
+      params.push(content_text)
+      updates.push(`content_text = $${params.length}`)
+    }
+    if (content_rich !== undefined) {
+      params.push(content_rich)
+      updates.push(`content_rich = $${params.length}`)
+    }
+    if (content_html !== undefined) {
+      params.push(content_html)
+      updates.push(`content_html = $${params.length}`)
+    }
+    if (excerpt !== undefined) {
+      params.push(excerpt)
+      updates.push(`excerpt = $${params.length}`)
+    }
+    if (cover_image_url !== undefined) {
+      params.push(cover_image_url)
+      updates.push(`cover_image_url = $${params.length}`)
     }
     if (status !== undefined) {
       if (!['draft', 'published'].includes(status)) {
@@ -273,7 +405,7 @@ app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
     
     // Validate at least one field is being updated
     if (!updates.length) {
-      const err = new Error('At least one field (title, body, or status) must be provided')
+      const err = new Error('At least one field (title, content_text, content_rich, content_html, excerpt, cover_image_url, or status) must be provided')
       err.status = 400
       return next(err)
     }
@@ -282,7 +414,7 @@ app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
     params.push(req.params.id)
     
     const { rows } = await q(
-      `UPDATE posts SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`,
+      `UPDATE posts SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING id, title, content_text, content_rich, content_html, excerpt, cover_image_url, status, created_at, updated_at`,
       params
     )
     
@@ -361,7 +493,22 @@ async function startServer() {
       console.log(`📡 Test endpoint: http://localhost:${PORT}/api/hello`)
       console.log(`🗄️ Database test: http://localhost:${PORT}/api/db/now`)
       console.log(`📝 Posts API: http://localhost:${PORT}/api/posts`)
-      console.log(`🌐 CORS allowed origins: ${allowedOrigins.map(o => o instanceof RegExp ? o.source : o).join(', ')}`)
+      
+      // Log storage driver
+      if (storageInfo.driver === 'supabase') {
+        const bucketName = process.env.SUPABASE_BUCKET || 'public-images'
+        console.log(`🗄️ Storage driver: supabase (${bucketName})`)
+      } else {
+        console.log(`🗄️ Storage driver: local`)
+      }
+      
+      // Log Supabase admin configuration status
+      console.log(`🔑 Supabase Admin: ${isSupabaseAdminConfigured ? 'configured' : 'not configured'}`)
+      
+      if (process.env.NODE_ENV !== 'production') {
+        const printable = ALLOWED_ORIGINS.map(o => o instanceof RegExp ? o.toString() : o).join(', ') || '(none)';
+        console.log(`🌐 CORS allowed origins: ${printable}`);
+      }
     })
   } catch (error) {
     console.error('Failed to start server:', error)

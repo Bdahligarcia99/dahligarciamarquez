@@ -9,7 +9,7 @@ export default function Posts() {
   
   // Form state
   const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
+  const [contentText, setContentText] = useState('')
   const [posting, setPosting] = useState(false)
   const [formError, setFormError] = useState(null)
 
@@ -35,8 +35,8 @@ export default function Posts() {
     e.preventDefault()
     
     // Validation
-    if (!title.trim() || !body.trim()) {
-      setFormError('Title and body are required')
+    if (!title.trim() || !contentText.trim()) {
+      setFormError('Title and content are required')
       return
     }
 
@@ -46,7 +46,7 @@ export default function Posts() {
       
       const newPost = await apiPost('/api/posts', {
         title: title.trim(),
-        body: body.trim()
+        content_text: contentText.trim()
       })
       
       // Prepend new post to local state
@@ -54,7 +54,7 @@ export default function Posts() {
       
       // Clear form
       setTitle('')
-      setBody('')
+      setContentText('')
     } catch (err) {
       setFormError(err.message)
     } finally {
@@ -86,13 +86,13 @@ export default function Posts() {
           </div>
           
           <div>
-            <label htmlFor="body" className="block text-sm font-medium text-gray-700 mb-1">
-              Body
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+              Content
             </label>
             <textarea
-              id="body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
+              id="content"
+              value={contentText}
+              onChange={(e) => setContentText(e.target.value)}
               rows="4"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter post content"
@@ -103,7 +103,7 @@ export default function Posts() {
           <div className="flex items-center justify-between">
             <button
               type="submit"
-              disabled={posting || !title.trim() || !body.trim()}
+              disabled={posting || !title.trim() || !contentText.trim()}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {posting ? 'Creating...' : 'Create Post'}
@@ -149,7 +149,7 @@ export default function Posts() {
                   </time>
                 </header>
                 <div className="text-gray-700 whitespace-pre-wrap">
-                  {post.body}
+                  {post.content_text || ''}
                 </div>
               </article>
             ))}

@@ -21,5 +21,6 @@ module.exports = {
   testTimeout: 10000,
   
   // Verbose output
-  verbose: true
+  verbose: true,
+  
 };

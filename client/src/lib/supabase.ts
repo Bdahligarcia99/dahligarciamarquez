@@ -4,17 +4,32 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.')
+// Feature flag for Supabase availability
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+
+// Lazy client creation - only when configured
+let _supabaseClient: any = null
+
+export function getSupabaseClient() {
+  if (!isSupabaseConfigured) {
+    return null // Do not throw
+  }
+  
+  if (!_supabaseClient) {
+    _supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
+  }
+  
+  return _supabaseClient
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-})
+// Legacy export for backward compatibility - will be null if not configured
+export const supabase = getSupabaseClient()
 
 // Types for our database tables
 export interface Profile {
@@ -65,17 +80,23 @@ export interface Image {
   public_url?: string
 }
 
-// Helper functions for common operations
+// Helper functions for common operations - safe when Supabase not configured
 export const getCurrentUser = () => {
-  return supabase.auth.getUser()
+  const client = getSupabaseClient()
+  if (!client) return Promise.resolve({ data: { user: null }, error: new Error('Supabase not configured') })
+  return client.auth.getUser()
 }
 
 export const signIn = (email: string, password: string) => {
-  return supabase.auth.signInWithPassword({ email, password })
+  const client = getSupabaseClient()
+  if (!client) return Promise.resolve({ data: null, error: new Error('Supabase not configured') })
+  return client.auth.signInWithPassword({ email, password })
 }
 
 export const signUp = (email: string, password: string, displayName?: string) => {
-  return supabase.auth.signUp({
+  const client = getSupabaseClient()
+  if (!client) return Promise.resolve({ data: null, error: new Error('Supabase not configured') })
+  return client.auth.signUp({
     email,
     password,
     options: {
@@ -87,17 +108,29 @@ export const signUp = (email: string, password: string, displayName?: string) =>
 }
 
 export const signOut = () => {
-  return supabase.auth.signOut()
+  const client = getSupabaseClient()
+  if (!client) return Promise.resolve({ error: new Error('Supabase not configured') })
+  return client.auth.signOut()
 }
 
 export const resetPassword = (email: string) => {
-  return supabase.auth.resetPasswordForEmail(email, {
+  const client = getSupabaseClient()
+  if (!client) return Promise.resolve({ data: null, error: new Error('Supabase not configured') })
+  return client.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/auth/reset-password`
   })
 }
 
-// Get current session token for API calls
+// Get current session token for API calls - safe when Supabase not configured
 export const getSessionToken = async (): Promise<string | null> => {
-  const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token || null
+  const client = getSupabaseClient()
+  if (!client) return null
+  
+  try {
+    const { data: { session } } = await client.auth.getSession()
+    return session?.access_token || null
+  } catch (error) {
+    console.warn('Failed to get session token:', error)
+    return null
+  }
 }

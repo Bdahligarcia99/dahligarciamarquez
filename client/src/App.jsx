@@ -3,6 +3,7 @@ import { useState, Suspense, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import { AdminProvider } from './features/admin/AdminProvider'
+import { CompressionProvider } from './hooks/useCompressionSettings'
 import AdminLogin from './features/admin/AdminLogin'
 import AdminTokenModal from './components/AdminTokenModal'
 import Posts from './features/posts/Posts'
@@ -17,6 +18,10 @@ import BlogPost from './pages/BlogPost'
 import StoriesPage from './pages/StoriesPage'
 import StoryDetail from './pages/StoryDetail'
 import NotFound from './components/NotFound'
+import DevNetInspector from './components/DevNetInspector'
+
+// Import PostPreview for the new preview route
+import PostPreview from './components/posts/PostPreview'
 
 function AppShell() {
   const location = useLocation()
@@ -71,6 +76,21 @@ function AppShell() {
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/stories" element={<StoriesPage />} />
             <Route path="/stories/:slug" element={<StoryDetail />} />
+            
+            {/* Post Preview Route - renders outside dashboard layout */}
+            <Route 
+              path="/posts/:id/preview" 
+              element={
+                <RequireAdmin>
+                  <ErrorBoundary>
+                    <Suspense fallback={<div style={{padding: 16}}>Loading preview...</div>}>
+                      <PostPreview />
+                    </Suspense>
+                  </ErrorBoundary>
+                </RequireAdmin>
+              } 
+            />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
@@ -80,6 +100,9 @@ function AppShell() {
       </div>
       
       <AdminTokenModal open={modalOpen} onClose={() => setModalOpen(false)} />
+
+      {/* Dev-only network inspector */}
+      <DevNetInspector />
     </>
   )
 }
@@ -88,7 +111,9 @@ function App() {
   return (
     <Router>
       <AdminProvider>
-        <AppShell />
+        <CompressionProvider>
+          <AppShell />
+        </CompressionProvider>
       </AdminProvider>
     </Router>
   )

@@ -30,6 +30,20 @@
     @apply prose-headings:font-serif prose-headings:text-secondary-900;
     @apply prose-p:text-secondary-700 prose-p:leading-relaxed;
     @apply prose-a:text-primary-600 prose-a:no-underline hover:prose-a:underline;
+    @apply prose-img:rounded-lg prose-img:shadow-md prose-img:my-6;
+  }
+  
+  /* Ensure images in prose content display properly */
+  .prose img {
+    @apply max-w-full h-auto rounded-lg shadow-md my-6 mx-auto;
+  }
+  
+  .prose figure {
+    @apply my-6;
+  }
+  
+  .prose figure img {
+    @apply rounded-lg shadow-md;
   }
 }
 

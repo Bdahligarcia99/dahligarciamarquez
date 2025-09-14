@@ -6,10 +6,10 @@ set -euo pipefail
 
 echo "🚀 Starting Supabase bootstrap..."
 
-# Check if .env.supabase exists
-if [[ ! -f ".env.supabase" ]]; then
-  echo "❌ Error: .env.supabase file not found"
-  echo "Please create .env.supabase with:"
+# Check if .env.supabase exists in server folder
+if [[ ! -f "server/.env.supabase" ]]; then
+  echo "❌ Error: server/.env.supabase file not found"
+  echo "Please create server/.env.supabase with:"
   echo "SUPABASE_URL=https://your-project.supabase.co"
   echo "SUPABASE_ANON_KEY=your-anon-key"
   echo "SUPABASE_SERVICE_ROLE_KEY=your-service-role-key"
@@ -17,8 +17,8 @@ if [[ ! -f ".env.supabase" ]]; then
   exit 1
 fi
 
-# Load environment variables
-source .env.supabase
+# Load environment variables from server folder
+source server/.env.supabase
 
 # Validate required variables
 if [[ -z "${SUPABASE_URL:-}" || -z "${SUPABASE_ANON_KEY:-}" || -z "${SUPABASE_SERVICE_ROLE_KEY:-}" || -z "${SUPABASE_DB_URL:-}" ]]; then

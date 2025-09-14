@@ -1,6 +1,6 @@
 // Authentication and database connectivity routes
 import { Router } from 'express'
-import { supabaseAdmin } from '../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
 
 const router = Router()
 

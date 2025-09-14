@@ -5,7 +5,7 @@
  * @typedef {Object} Post
  * @property {number} id
  * @property {string} title
- * @property {string} body
+ * @property {string} content_text
  * @property {string} created_at
  * @property {'published'|'draft'} [status]
  */

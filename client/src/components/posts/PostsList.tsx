@@ -164,7 +164,7 @@ export default function PostsList({ showDrafts = false, labelFilter }: PostsList
               {post.cover_image_url && (
                 <img
                   src={post.cover_image_url}
-                  alt={post.title}
+                  alt={post.cover_image_alt || post.title || 'Cover image'}
                   className="w-full h-48 object-cover"
                 />
               )}
@@ -221,7 +221,7 @@ export default function PostsList({ showDrafts = false, labelFilter }: PostsList
                       to={`/admin/posts/${post.id}/edit`}
                       className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      Edit
+                      View/Edit
                     </Link>
                     <button
                       onClick={() => deletePost(post.id)}

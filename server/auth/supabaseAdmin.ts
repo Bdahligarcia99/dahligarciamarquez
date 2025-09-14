@@ -1,28 +1,39 @@
 // Supabase Admin Client for Server-Side Operations
 // Uses service role key for privileged database operations
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const url = process.env.SUPABASE_URL
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-}
+export const isSupabaseAdminConfigured = Boolean(url && key)
 
-// Create admin client with service role privileges
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  },
-  db: {
-    schema: 'public'
+let cached: SupabaseClient | null = null
+
+export function getSupabaseAdmin(): SupabaseClient | null {
+  if (!isSupabaseAdminConfigured) return null
+  if (!cached) {
+    cached = createClient(url!, key!, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      db: {
+        schema: 'public'
+      }
+    })
   }
-})
+  return cached
+}
 
 // Helper to get user profile with role
 export async function getUserProfile(userId: string) {
+  const supabaseAdmin = getSupabaseAdmin()
+  if (!supabaseAdmin) {
+    console.error('Supabase admin client not configured')
+    return null
+  }
+
   const { data, error } = await supabaseAdmin
     .from('profiles')
     .select('id, display_name, role, created_at, updated_at')

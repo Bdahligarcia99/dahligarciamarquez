@@ -12,6 +12,10 @@ import labelsRoutes from './routes/labels.js'
 import postsRoutes from './routes/posts.js'
 import imagesRoutes from './routes/images.js'
 import adminRoutes from './routes/admin.js'
+import storageRoutes from './routes/storage.js'
+
+// Import storage info for startup logging
+import { storageInfo } from './src/storage/index.js'
 
 // Import middleware
 import { comingSoonMiddleware } from './src/middleware/comingSoon.js'
@@ -72,7 +76,7 @@ app.use(express.urlencoded({ extended: true }))
 // Static file serving for uploads (development)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // Root route
 app.get('/', (req, res) => {
@@ -111,6 +115,7 @@ app.use('/api/labels', labelsRoutes)
 app.use('/api/posts', postsRoutes)
 app.use('/api/images', imagesRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/storage', storageRoutes)
 
 // Legacy compatibility - redirect old admin ping to new health endpoint
 app.get('/api/admin/ping', (req, res) => {
@@ -156,7 +161,14 @@ app.listen(PORT, () => {
   console.log(`🏥 Health check: http://localhost:${PORT}/healthz`)
   console.log(`🔐 Auth: Supabase JWT`)
   console.log(`🗄️ Database: Supabase Postgres`)
-  console.log(`📦 Storage: Supabase Storage`)
+  
+  // Log storage driver
+  if (storageInfo.driver === 'supabase') {
+    const bucketName = process.env.SUPABASE_BUCKET || 'public-images'
+    console.log(`🗄️ Storage driver: supabase (${bucketName})`)
+  } else {
+    console.log(`🗄️ Storage driver: local`)
+  }
   console.log(`🌐 CORS allowed origins: ${allowedOrigins.map(o => o instanceof RegExp ? o.source : o).join(', ')}`)
   console.log('[boot] CORS configured with allowedHeaders: Authorization, X-Admin-Token')
 })

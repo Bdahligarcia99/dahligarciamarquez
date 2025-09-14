@@ -1,7 +1,7 @@
 // Admin-only routes for system management
 import { Router } from 'express'
-import { supabaseAdmin } from '../auth/supabaseAdmin.js'
-import { requireAdmin } from '../src/middleware/requireAdmin.js'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
+import { requireAdmin } from '../src/middleware/requireAdmin.ts'
 import { getComingSoon, setComingSoon } from '../src/state/runtimeConfig.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'

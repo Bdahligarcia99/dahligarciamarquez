@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { SERVER_ADMIN_TOKEN } from '../config.js'
-import { supabaseAdmin } from '../../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../../auth/supabaseAdmin.js'
 
 export interface AdminOrUserRequest extends Request {
   user?: {

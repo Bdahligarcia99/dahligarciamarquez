@@ -4,7 +4,7 @@ import { apiAdminPost, apiAdminPatch } from '../../../lib/api'
 
 const PostFormModal = ({ isOpen, onClose, onSuccess, editPost = null }) => {
   const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
+  const [contentText, setContentText] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -14,10 +14,10 @@ const PostFormModal = ({ isOpen, onClose, onSuccess, editPost = null }) => {
     if (isOpen) {
       if (editPost) {
         setTitle(editPost.title)
-        setBody(editPost.body)
+        setContentText(editPost.content_text || '') // Use content_text field
       } else {
         setTitle('')
-        setBody('')
+        setContentText('')
       }
       setError(null)
     }
@@ -29,7 +29,7 @@ const PostFormModal = ({ isOpen, onClose, onSuccess, editPost = null }) => {
     setError(null)
 
     try {
-      const postData = { title, body }
+      const postData = { title, content_text: contentText }
       let result
 
       if (isEditing) {
@@ -73,11 +73,11 @@ const PostFormModal = ({ isOpen, onClose, onSuccess, editPost = null }) => {
           
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Body
+              Content
             </label>
             <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
+              value={contentText}
+              onChange={(e) => setContentText(e.target.value)}
               rows={6}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required

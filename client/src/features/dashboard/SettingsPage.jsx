@@ -1,8 +1,9 @@
 // client/src/features/dashboard/SettingsPage.jsx
 import { useState, useEffect } from 'react'
-import { API_URL, API_MISCONFIGURED, apiGet, api, getApiBase } from '../../lib/api'
+import { API_MISCONFIGURED, apiGet, api, getApiBase } from '../../lib/api'
 import { apiAdminGet, apiAdminPost } from '../../lib/api'
 import StatusBadge from './components/StatusBadge'
+import CompressionSettings from './components/CompressionSettings'
 
 const SettingsPage = () => {
   const [health, setHealth] = useState(null)
@@ -187,6 +188,9 @@ const SettingsPage = () => {
         )}
       </div>
 
+      {/* Image Compression Settings */}
+      <CompressionSettings />
+
       {/* API Test Widget */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         <h2 className="text-lg font-semibold mb-4">API Connection Test</h2>
@@ -285,7 +289,7 @@ const SettingsPage = () => {
         <h2 className="text-lg font-semibold mb-4">Resources</h2>
         <div className="space-y-2">
           <a
-            href={`${API_URL}/docs`}
+            href={`${getApiBase()}/docs`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"

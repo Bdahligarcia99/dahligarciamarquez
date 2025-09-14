@@ -1,5 +1,6 @@
 // client/src/features/dashboard/PostsPage.jsx
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { apiAdminGet, apiAdminDelete } from '../../lib/api'
 import { isHTTPError } from '../../lib/httpErrors'
 import PostFormModal from './components/PostFormModal'
@@ -7,6 +8,7 @@ import StatusBadge from './components/StatusBadge'
 import AdminTokenControls from './components/AdminTokenControls'
 
 const PostsPage = () => {
+  const navigate = useNavigate()
   const [posts, setPosts] = useState([])
   const [filteredPosts, setFilteredPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,7 @@ const PostsPage = () => {
     } else {
       const filtered = posts.filter(post =>
         post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        post.body.toLowerCase().includes(searchTerm.toLowerCase())
+        (post.content_text || '').toLowerCase().includes(searchTerm.toLowerCase())
       )
       setFilteredPosts(filtered)
     }
@@ -78,8 +80,7 @@ const PostsPage = () => {
   }
 
   const openEditModal = (post) => {
-    setEditingPost(post)
-    setIsModalOpen(true)
+    navigate(`/dashboard/posts/${post.id}/edit`)
   }
 
   const closeModal = () => {
@@ -100,7 +101,7 @@ const PostsPage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Posts</h1>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => navigate('/dashboard/posts/new')}
           className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
         >
           New Post
@@ -176,7 +177,7 @@ const PostsPage = () => {
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-900">{post.title}</div>
                       <div className="text-sm text-gray-500 truncate max-w-xs">
-                        {post.body}
+                        {post.content_text || ''}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
@@ -190,7 +191,7 @@ const PostsPage = () => {
                         onClick={() => openEditModal(post)}
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                       >
-                        Edit
+                        View/Edit
                       </button>
                       <button
                         onClick={() => handleDeletePost(post.id)}

@@ -1,33 +1,8 @@
 // Images metadata API routes
 import { Router } from 'express'
-import { supabaseAdmin } from '../auth/supabaseAdmin.js'
-import { requireUser } from '../middleware/requireUser.js'
-import { requireAdmin } from '../src/middleware/requireAdmin.js'
-import { requireAdminOrUser, AdminOrUserRequest } from '../src/middleware/requireAdminOrUser.js'
-import { AuthenticatedRequest } from '../middleware/requireUser.js'
+import { requireAdmin } from '../src/middleware/requireAdmin.ts'
 import { parseMultipartForm, MulterRequest } from '../src/middleware/multipart.js'
-import { saveImage } from '../src/storage/index.js'
-import { 
-  validateAltText, 
-  validateImageTitle, 
-  createImageValidationErrorResponse,
-  ImageValidationError 
-} from '../src/utils/imageValidation.js'
-import {
-  validateUploadedFile,
-  shouldWarnAboutFileSize,
-  generateUniqueFilename,
-  generateStoragePath,
-  uploadToSupabaseStorage,
-  createFileValidationErrorResponse
-} from '../src/utils/fileUpload.js'
-import {
-  createErrorResponse,
-  createListResponse,
-  createSingleResponse,
-  createWarningResponse,
-  HTTP_STATUS
-} from '../src/utils/responses.js'
+import { storage } from '../src/storage/index.js'
 
 // Image processing dependencies
 let sharp: any
@@ -120,468 +95,330 @@ router.post('/uploads/image', parseMultipartForm, requireAdmin, async (req: Mult
   try {
     const file = req.file
 
-    // Validate the uploaded file
-    const validationError = validateImageUpload(file)
-    if (validationError) {
-      const statusCode = validationError.includes('Invalid file type') ? 415 : 
-                        validationError.includes('too large') ? 413 : 400
-      return res.status(statusCode).json({ error: validationError })
+    if (!file) {
+      return res.status(400).json({ error: 'No image file provided' })
     }
 
-    // Get image dimensions
-    const { width, height } = await getImageDimensions(file!.buffer)
+    // Get compression settings
+    let compressionSettings
+    try {
+      const { query } = await import('../src/db.ts')
+      const settingsResult = await query(`
+        SELECT * FROM compression_settings 
+        WHERE user_id IS NULL 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `)
+      compressionSettings = settingsResult.rows[0]
+    } catch (error) {
+      console.warn('Could not fetch compression settings, using defaults:', error)
+      compressionSettings = {
+        compression_enabled: true,
+        auto_compress: true,
+        size_threshold_kb: 500,
+        dimension_threshold_px: 2000,
+        quality_preset: 'balanced',
+        custom_quality: 75,
+        convert_photos_to_webp: true,
+        preserve_png_for_graphics: true
+      }
+    }
 
-    // Get file extension
-    const ext = getExtensionFromMimeType(file!.mimetype)
+    // Get original image dimensions
+    const { width: originalWidth, height: originalHeight } = await getImageDimensions(file.buffer)
+    
+    let finalBuffer = file.buffer
+    let finalMimeType = file.mimetype
+    let compressionResult = null
+    
+    // Check if compression should be applied
+    if (compressionSettings?.compression_enabled && compressionSettings?.auto_compress) {
+      try {
+        const { CompressionService } = await import('../src/services/compressionService.js')
+        
+        // Check if image meets compression thresholds
+        const shouldCompress = CompressionService.shouldCompress(
+          file.buffer,
+          { width: originalWidth, height: originalHeight },
+          {
+            sizeThreshold: compressionSettings.size_threshold_kb || 500,
+            dimensionThreshold: compressionSettings.dimension_threshold_px || 2000
+          }
+        )
+        
+        if (shouldCompress) {
+          // Apply compression
+          const quality = compressionSettings.quality_preset === 'custom' 
+            ? compressionSettings.custom_quality 
+            : compressionSettings.quality_preset
+            
+          compressionResult = await CompressionService.compressImage(file.buffer, {
+            quality,
+            convertPhotosToWebP: compressionSettings.convert_photos_to_webp,
+            preservePngForGraphics: compressionSettings.preserve_png_for_graphics
+          })
+          
+          finalBuffer = compressionResult.buffer
+          finalMimeType = compressionResult.mimeType
+        }
+      } catch (compressionError) {
+        console.warn('Compression failed, using original image:', compressionError)
+        // Continue with original image if compression fails
+      }
+    }
 
-    // Save image using storage layer
-    const { url } = await saveImage(file!.buffer, ext)
+    // Use storage driver to save image
+    const { url, path } = await storage.putImage({
+      buffer: finalBuffer,
+      mime: finalMimeType,
+      filenameHint: file.originalname
+    })
+
+    // Store metadata if possible
+    try {
+      const { query } = await import('../src/db.ts')
+      await query(`
+        INSERT INTO image_metadata (
+          path, mime_type, file_size_bytes, is_public,
+          is_compressed, original_size_bytes, compressed_size_bytes,
+          compression_ratio, compression_quality
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        path,
+        finalMimeType,
+        finalBuffer.length,
+        true,
+        compressionResult !== null,
+        file.buffer.length,
+        finalBuffer.length,
+        compressionResult?.compressionRatio || 0,
+        compressionSettings?.quality_preset || 'none'
+      ])
+    } catch (error) {
+      console.warn('Could not store image metadata:', error)
+    }
+
+    // Get final dimensions (may have changed due to compression)
+    const { width: finalWidth, height: finalHeight } = compressionResult 
+      ? { width: compressionResult.width, height: compressionResult.height }
+      : await getImageDimensions(finalBuffer)
 
     // Return success response
-    res.status(200).json({
-      url,
-      width,
-      height
-    })
-
-  } catch (error) {
-    console.error('Image upload error:', error)
-    res.status(500).json({ error: 'Failed to upload image' })
-  }
-})
-
-// POST /api/images - Upload image file with metadata
-router.post('/', parseMultipartForm, requireAdminOrUser, async (req: MulterRequest & AdminOrUserRequest, res) => {
-  try {
-    const { alt_text, title } = req.body
-    const file = req.file
-
-    // Validate file upload
-    const fileErrors = validateUploadedFile(file!)
-    if (fileErrors.length > 0) {
-      return res.status(422).json(createFileValidationErrorResponse(fileErrors))
-    }
-
-    // Validate metadata fields
-    const metadataErrors: ImageValidationError[] = [
-      ...validateAltText(alt_text),
-      ...validateImageTitle(title)
-    ]
-
-    if (metadataErrors.length > 0) {
-      return res.status(422).json(createImageValidationErrorResponse(metadataErrors))
-    }
-
-    // Determine owner_id based on auth type
-    let ownerId: string
-    if (req.isAdmin) {
-      // For admin token, require owner_id in request
-      const { owner_id } = req.body
-      if (!owner_id || typeof owner_id !== 'string') {
-        return res.status(422).json(createImageValidationErrorResponse([{
-          field: 'owner_id',
-          message: 'owner_id is required when using admin token',
-          code: 'REQUIRED'
-        }]))
-      }
-      ownerId = owner_id
-    } else {
-      // For user token, use authenticated user's ID
-      ownerId = req.user!.id
-    }
-
-    // Generate unique filename and storage path
-    const uniqueFilename = generateUniqueFilename(file!.originalname, ownerId)
-    const storagePath = generateStoragePath(uniqueFilename, ownerId)
-
-    // Upload to Supabase Storage
-    const uploadResult = await uploadToSupabaseStorage(file!, storagePath)
-    
-    if (!uploadResult.success) {
-      return res.status(500).json({ 
-        error: 'Failed to upload file',
-        details: uploadResult.error 
-      })
-    }
-
-    // Store metadata in database
-    const { data: imageRecord, error: dbError } = await supabaseAdmin
-      .from('images')
-      .insert({
-        owner_id: ownerId,
-        path: storagePath,
-        mime_type: file!.mimetype,
-        file_size_bytes: file!.size,
-        alt_text: alt_text.trim(),
-        title: title?.trim() || null,
-        is_public: true // Default to public for uploaded images
-      })
-      .select('id, path, mime_type, file_size_bytes, width, height, is_public, alt_text, title, created_at, updated_at')
-      .single()
-
-    if (dbError) {
-      // If DB insert fails, try to clean up uploaded file
-      try {
-        await supabaseAdmin.storage
-          .from('post-images')
-          .remove([storagePath])
-      } catch (cleanupError) {
-        console.warn('Failed to cleanup uploaded file after DB error:', cleanupError)
-      }
-      
-      throw dbError
-    }
-
-    // Check if we should warn about file size
-    const warning = shouldWarnAboutFileSize(file!.size) ? {
-      message: `File size (${(file!.size / 1024 / 1024).toFixed(1)}MB) is large. Consider optimizing for better performance.`
-    } : undefined
-
-    // Prepare response
     const response: any = {
-      image: {
-        ...imageRecord,
-        public_url: uploadResult.publicUrl
+      url,
+      path,
+      width: finalWidth,
+      height: finalHeight
+    }
+
+    // Add compression info if compression was applied
+    if (compressionResult) {
+      response.compression = {
+        originalSize: compressionResult.originalSize,
+        compressedSize: compressionResult.compressedSize,
+        compressionRatio: compressionResult.compressionRatio,
+        format: compressionResult.format,
+        stats: `Compressed from ${(compressionResult.originalSize / (1024 * 1024)).toFixed(2)}MB to ${(compressionResult.compressedSize / (1024 * 1024)).toFixed(2)}MB (${compressionResult.compressionRatio}% reduction)`
       }
     }
 
-    if (warning) {
-      res.status(HTTP_STATUS.CREATED).json(createWarningResponse('image', {
-        ...imageRecord,
-        public_url: uploadResult.publicUrl
-      }, warning.message))
-    } else {
-      res.status(HTTP_STATUS.CREATED).json(createSingleResponse('image', {
-        ...imageRecord,
-        public_url: uploadResult.publicUrl
-      }))
+    res.status(200).json(response)
+
+  } catch (error: any) {
+    console.error('Image upload error:', error)
+    
+    // Handle specific error status codes
+    if (error.statusCode === 503) {
+      return res.status(503).json({ 
+        error: 'Uploads not configured' 
+      })
+    } else if (error.statusCode === 415) {
+      return res.status(415).json({ 
+        error: error.message 
+      })
+    } else if (error.statusCode === 413) {
+      return res.status(413).json({ 
+        error: error.message 
+      })
     }
-  } catch (error) {
-    console.error('Error uploading image:', error)
+    
+    // Handle other errors (500)
     res.status(500).json({ error: 'Failed to upload image' })
   }
 })
 
-// POST /api/images/metadata - Store image metadata after client upload
-router.post('/metadata', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
+// GET /api/images - Admin only: get all images (uploaded files + URLs from posts)
+router.get('/', requireAdmin, async (req, res) => {
   try {
-    const { 
-      path, 
-      mime_type, 
-      file_size_bytes, 
-      width, 
-      height, 
-      is_public = true 
-    } = req.body
+    console.log('Images endpoint called successfully')
     
-    // Validation
-    if (!path || typeof path !== 'string') {
-      return res.status(400).json({ error: 'Image path is required' })
+    // Initialize empty arrays for images
+    let uploadedImages: any[] = []
+    let posts: any[] = []
+    
+    try {
+      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+      const supabaseAdmin = getSupabaseAdmin()
+      
+      console.log('Supabase admin client initialized')
+      
+      // Get uploaded images from images table
+      const { data: uploadedImagesData, error: uploadedError } = await supabaseAdmin
+        .from('images')
+        .select(`
+          id,
+          path,
+          mime_type,
+          file_size_bytes,
+          width,
+          height,
+          is_public,
+          created_at,
+          profiles!images_owner_id_fkey (
+            display_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (uploadedError) {
+        console.error('Error fetching uploaded images:', uploadedError)
+      } else {
+        uploadedImages = uploadedImagesData || []
+        console.log(`Found ${uploadedImages.length} uploaded images`)
+      }
+
+      // Get images from post content (cover images and inline images)
+      const { data: postsData, error: postsError } = await supabaseAdmin
+        .from('posts')
+        .select(`
+          id,
+          title,
+          cover_image_url,
+          content_rich,
+          created_at,
+          profiles!posts_author_id_fkey (
+            display_name,
+            email
+          )
+        `)
+        .not('cover_image_url', 'is', null)
+
+      if (postsError) {
+        console.error('Error fetching posts with images:', postsError)
+      } else {
+        posts = postsData || []
+        console.log(`Found ${posts.length} posts with cover images`)
+      }
+
+    } catch (supabaseError) {
+      console.error('Supabase initialization or query error:', supabaseError)
+      // Continue with empty arrays - the endpoint will still work
     }
+
+    // Extract images from post content
+    const postImages: any[] = []
     
-    if (!mime_type || typeof mime_type !== 'string') {
-      return res.status(400).json({ error: 'MIME type is required' })
-    }
-    
-    if (!file_size_bytes || typeof file_size_bytes !== 'number') {
-      return res.status(400).json({ error: 'File size is required' })
-    }
-    
-    // Validate MIME type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-    if (!allowedTypes.includes(mime_type)) {
-      return res.status(400).json({ 
-        error: `Invalid MIME type. Allowed: ${allowedTypes.join(', ')}` 
-      })
-    }
-    
-    // Determine owner_id based on auth type
-    let ownerId: string
-    if (req.isAdmin) {
-      // For admin token, require owner_id in request
-      const { owner_id } = req.body
-      if (!owner_id || typeof owner_id !== 'string') {
-        return res.status(400).json({ 
-          error: 'owner_id is required when using admin token' 
+    // Add cover images
+    posts.forEach(post => {
+      if (post.cover_image_url) {
+        postImages.push({
+          id: `cover-${post.id}`,
+          url: post.cover_image_url,
+          source: 'post_cover',
+          post_id: post.id,
+          post_title: post.title,
+          created_at: post.created_at,
+          owner: post.profiles
         })
       }
-      ownerId = owner_id
-    } else {
-      // For user token, use authenticated user's ID
-      ownerId = req.user!.id
-    }
-
-    // Store metadata
-    const { data, error } = await supabaseAdmin
-      .from('images')
-      .insert({
-        owner_id: ownerId,
-        path,
-        mime_type,
-        file_size_bytes,
-        width: width || null,
-        height: height || null,
-        is_public: Boolean(is_public)
-      })
-      .select('id, path, mime_type, file_size_bytes, width, height, is_public, created_at')
-      .single()
-    
-    if (error) {
-      throw error
-    }
-    
-    // Generate public URL for the image
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('post-images')
-      .getPublicUrl(path)
-    
-    res.status(201).json({
-      ...data,
-      public_url: publicUrl
     })
-  } catch (error) {
-    console.error('Error storing image metadata:', error)
-    res.status(500).json({ error: 'Failed to store image metadata' })
-  }
-})
 
-// GET /api/images - List user's images
-router.get('/', requireUser, async (req: AuthenticatedRequest, res) => {
-  try {
-    const { page = '1', limit = '50' } = req.query
-    
-    const pageNum = Math.max(1, parseInt(page as string))
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string)))
-    const offset = (pageNum - 1) * limitNum
-    
-    const { data, error, count } = await supabaseAdmin
-      .from('images')
-      .select('id, path, mime_type, file_size_bytes, width, height, is_public, created_at', { count: 'exact' })
-      .eq('owner_id', req.user!.id)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limitNum - 1)
-    
-    if (error) {
-      throw error
-    }
-    
-    // Add public URLs
-    const imagesWithUrls = data?.map(image => {
-      const { data: { publicUrl } } = supabaseAdmin.storage
-        .from('post-images')
-        .getPublicUrl(image.path)
-      
-      return {
-        ...image,
-        public_url: publicUrl
+    // Extract inline images from rich content
+    posts.forEach(post => {
+      if (post.content_rich) {
+        try {
+          const content = JSON.parse(post.content_rich)
+          extractImagesFromContent(content, post, postImages)
+        } catch (e) {
+          // Skip invalid JSON content
+          console.warn(`Failed to parse content_rich for post ${post.id}:`, e)
+        }
       }
-    }) || []
-    
-    res.json(createListResponse(imagesWithUrls, pageNum, limitNum, count || 0))
-  } catch (error) {
-    console.error('Error fetching images:', error)
-    res.status(500).json({ error: 'Failed to fetch images' })
-  }
-})
+    })
 
-// GET /api/images/:id - Get single image metadata
-router.get('/:id', requireUser, async (req: AuthenticatedRequest, res) => {
-  try {
-    const { id } = req.params
-    
-    const { data: image, error } = await supabaseAdmin
-      .from('images')
-      .select('id, owner_id, path, mime_type, file_size_bytes, width, height, is_public, alt_text, title, created_at, updated_at')
-      .eq('id', id)
-      .single()
-    
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Image not found' })
-      }
-      throw error
-    }
-    
-    // Check access permissions
-    if (!image.is_public && image.owner_id !== req.user!.id && req.user!.role !== 'admin') {
-      return res.status(404).json({ error: 'Image not found' })
-    }
-    
-    // Remove owner_id from response for security
-    const { owner_id, ...imageResponse } = image
-    
-    // Generate public URL
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('post-images')
-      .getPublicUrl(image.path)
-    
+    // Format uploaded images
+    const formattedUploadedImages = uploadedImages.map(img => ({
+      id: img.id,
+      url: img.path.startsWith('http') ? img.path : `/uploads/${img.path}`,
+      source: 'upload',
+      mime_type: img.mime_type,
+      file_size_bytes: img.file_size_bytes,
+      width: img.width,
+      height: img.height,
+      is_public: img.is_public,
+      created_at: img.created_at,
+      owner: img.profiles
+    }))
+
+    // Combine and sort all images
+    const allImages = [...formattedUploadedImages, ...postImages]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    console.log(`Returning ${allImages.length} total images (${formattedUploadedImages.length} uploaded, ${postImages.length} from posts)`)
+
     res.json({
-      image: {
-        ...imageResponse,
-        public_url: publicUrl
-      }
+      images: allImages,
+      total: allImages.length,
+      uploaded_count: formattedUploadedImages.length,
+      post_images_count: postImages.length
     })
-  } catch (error) {
-    console.error('Error fetching image:', error)
-    res.status(500).json({ error: 'Failed to fetch image' })
+
+  } catch (error: any) {
+    console.error('Error in images endpoint:', error)
+    console.error('Error stack:', error.stack)
+    res.status(500).json({ 
+      error: 'Failed to fetch images',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 })
 
-// PUT /api/images/:id - Update image metadata
-router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
-  try {
-    const { id } = req.params
-    const { alt_text, title } = req.body
-    
-    // Get existing image first
-    const { data: existingImage, error: fetchError } = await supabaseAdmin
-      .from('images')
-      .select('owner_id')
-      .eq('id', id)
-      .single()
-    
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Image not found' })
-      }
-      throw fetchError
-    }
-    
-    // Check authorization based on auth type
-    if (!req.isAdmin) {
-      // For user tokens, check ownership
-      if (existingImage.owner_id !== req.user!.id && req.user!.role !== 'admin') {
-        return res.status(403).json({ error: 'Not authorized to update this image' })
-      }
-    }
-    // Admin token users can update any image
-    
-    // Validate fields
-    const errors: ImageValidationError[] = [
-      ...validateAltText(alt_text),
-      ...validateImageTitle(title)
-    ]
-    
-    // Return validation errors if any
-    if (errors.length > 0) {
-      return res.status(422).json(createImageValidationErrorResponse(errors))
-    }
-    
-    // Build update object
-    const updates: any = {
-      alt_text: alt_text.trim(),
-      updated_at: new Date().toISOString()
-    }
-    
-    if (title !== undefined) {
-      updates.title = title?.trim() || null
-    }
-    
-    // Update the image metadata
-    const { data: updatedImage, error: updateError } = await supabaseAdmin
-      .from('images')
-      .update(updates)
-      .eq('id', id)
-      .select('id, path, mime_type, file_size_bytes, width, height, is_public, alt_text, title, created_at, updated_at')
-      .single()
-    
-    if (updateError) {
-      throw updateError
-    }
-    
-    // Generate public URL
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('post-images')
-      .getPublicUrl(updatedImage.path)
-    
-    res.json({
-      image: {
-        ...updatedImage,
-        public_url: publicUrl
-      }
+// Helper function to extract images from rich content
+function extractImagesFromContent(content: any, post: any, images: any[]) {
+  if (!content || typeof content !== 'object') return
+  
+  if (Array.isArray(content)) {
+    content.forEach(item => extractImagesFromContent(item, post, images))
+    return
+  }
+  
+  if (content.type === 'image' && content.attrs?.src) {
+    images.push({
+      id: `inline-${post.id}-${images.length}`,
+      url: content.attrs.src,
+      source: 'post_inline',
+      post_id: post.id,
+      post_title: post.title,
+      alt_text: content.attrs.alt || null,
+      width: content.attrs.width || null,
+      height: content.attrs.height || null,
+      created_at: post.created_at,
+      owner: post.profiles
     })
-  } catch (error) {
-    console.error('Error updating image:', error)
-    res.status(500).json({ error: 'Failed to update image' })
   }
-})
-
-// DELETE /api/images/:id - Delete image and its storage file
-router.delete('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
-  try {
-    const { id } = req.params
-    
-    // Get image details first
-    const { data: image, error: fetchError } = await supabaseAdmin
-      .from('images')
-      .select('owner_id, path')
-      .eq('id', id)
-      .single()
-    
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return res.status(404).json({ error: 'Image not found' })
-      }
-      throw fetchError
-    }
-    
-    // Check authorization based on auth type
-    if (!req.isAdmin) {
-      // For user tokens, check ownership
-      if (image.owner_id !== req.user!.id && req.user!.role !== 'admin') {
-        return res.status(403).json({ error: 'Not authorized to delete this image' })
-      }
-    }
-    // Admin token users can delete any image
-    
-    // Check if image is referenced by any posts (cover images or in content)
-    // Generate the public URL to check against
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('post-images')
-      .getPublicUrl(image.path)
-    
-    const { data: referencingPosts, error: refError } = await supabaseAdmin
-      .from('posts')
-      .select('id, title')
-      .or(`cover_image_url.eq.${publicUrl},content_rich.cs."${image.path}"`)
-      .limit(5)
-    
-    if (refError) {
-      console.warn('Error checking post references:', refError)
-    }
-    
-    if (referencingPosts && referencingPosts.length > 0) {
-      return res.status(409).json({ 
-        error: 'Cannot delete image: it is being used by one or more posts',
-        references: referencingPosts.map(post => ({ id: post.id, title: post.title }))
-      })
-    }
-    
-    // Delete from storage
-    const { error: storageError } = await supabaseAdmin.storage
-      .from('post-images')
-      .remove([image.path])
-    
-    if (storageError) {
-      console.warn('Storage deletion failed:', storageError)
-      // Continue with database deletion even if storage fails
-    }
-    
-    // Delete from database
-    const { error: dbError } = await supabaseAdmin
-      .from('images')
-      .delete()
-      .eq('id', id)
-    
-    if (dbError) {
-      throw dbError
-    }
-    
-    res.json({ deleted: true })
-  } catch (error) {
-    console.error('Error deleting image:', error)
-    res.status(500).json({ error: 'Failed to delete image' })
+  
+  // Recursively check nested content
+  if (content.content) {
+    extractImagesFromContent(content.content, post, images)
   }
-})
+  
+  // Check other properties that might contain nested content
+  Object.values(content).forEach(value => {
+    if (typeof value === 'object') {
+      extractImagesFromContent(value, post, images)
+    }
+  })
+}
 
 export default router

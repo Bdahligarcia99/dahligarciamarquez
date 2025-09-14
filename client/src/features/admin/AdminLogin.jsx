@@ -1,7 +1,7 @@
 // client/src/features/admin/AdminLogin.jsx
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { apiAdminGet } from "../../lib/api";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { apiAdminGet, AdminApiError } from "../../lib/api";
 import { setAdminToken, clearAdminToken } from "../../lib/adminAuth";
 import { useAdmin } from "./AdminProvider";
 
@@ -10,7 +10,17 @@ export default function AdminLogin() {
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
+  const location = useLocation();
   const { refreshAdmin } = useAdmin();
+  
+  // Show message from navigation state (e.g., from 401 redirect)
+  useEffect(() => {
+    if (location.state?.message) {
+      setErr(location.state.message);
+      // Clear the state to prevent showing it again
+      nav(location.pathname, { replace: true });
+    }
+  }, [location.state, location.pathname, nav]);
 
   async function onSubmit(e) {
     e?.preventDefault();
@@ -27,9 +37,21 @@ export default function AdminLogin() {
         return;
       }
       throw new Error("Invalid");
-    } catch {
-      clearAdminToken();
-      setErr("Invalid token. Please try again.");
+    } catch (error) {
+      clearAdminToken(); // Clear invalid token
+      if (error instanceof AdminApiError) {
+        if (error.kind === 'network') {
+          setErr(error.message);
+        } else if (error.status === 401) {
+          setErr("Invalid token. Please try again.");
+        } else if (error.status === 404) {
+          setErr("Admin API not found. Server may be on an older build—please redeploy or restart the server.");
+        } else {
+          setErr(`Error: ${error.message}`);
+        }
+      } else {
+        setErr("Network error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -1,8 +1,8 @@
 // Posts API routes with Supabase integration
 import { Router } from 'express'
-import { supabaseAdmin } from '../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
 import { requireUser } from '../middleware/requireUser.js'
-import { requireAdmin } from '../middleware/requireAdmin.js'
+import { requireAdmin } from '../middleware/requireAdmin.ts'
 import { requireAdminOrUser, AdminOrUserRequest } from '../src/middleware/requireAdminOrUser.js'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 import { slugify, validateSlugAvailability } from '../src/utils/slugify.js'
