@@ -45,5 +45,25 @@
   .prose figure img {
     @apply rounded-lg shadow-md;
   }
+  
+  /* Editor image hover effects and indicators */
+  .editor-image {
+    @apply relative;
+  }
+  
+  .editor-image::after {
+    content: '🔍';
+    @apply absolute top-2 right-2 w-8 h-8 bg-black bg-opacity-60 text-white rounded-full flex items-center justify-center text-sm opacity-0 transition-all duration-200 pointer-events-none;
+    transform: scale(0.8);
+  }
+  
+  .editor-image:hover::after {
+    @apply opacity-100;
+    transform: scale(1);
+  }
+  
+  .editor-image:hover {
+    @apply ring-2 ring-blue-400 ring-opacity-50;
+  }
 }
 

@@ -63,8 +63,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ con
         inline: false,
         allowBase64: true,
         HTMLAttributes: {
-          class: 'max-w-full h-auto rounded-lg my-4',
-          draggable: false // Prevent drag and drop deletion
+          class: 'max-w-full h-auto rounded-lg my-4 editor-image cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:ring-2 hover:ring-blue-300',
+          draggable: false, // Prevent drag and drop deletion
+          title: 'Double-click to open image manager'
         }
       }),
       Link.configure({
@@ -94,8 +95,26 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ con
           const target = event.target as HTMLElement
           if (target.tagName === 'IMG' && onImageDoubleClick) {
             const img = target as HTMLImageElement
+            
+            // Add visual feedback for the double-click
+            img.style.transform = 'scale(0.95)'
+            setTimeout(() => {
+              img.style.transform = ''
+            }, 150)
+            
             onImageDoubleClick(img.src)
             return true // Prevent default behavior
+          }
+          return false
+        },
+        // Add mouseover event to show enhanced tooltip
+        mouseover: (view, event) => {
+          const target = event.target as HTMLElement
+          if (target.tagName === 'IMG') {
+            const img = target as HTMLImageElement
+            // Update title with more descriptive text
+            img.title = 'Double-click to open image manager and edit this image'
+            img.style.cursor = 'pointer'
           }
           return false
         },
@@ -640,8 +659,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ con
           type="button"
           onClick={addImage}
           disabled={uploading || !uploadsAvailable}
-          aria-label={uploadsAvailable ? "Insert image" : "Image uploads not configured in this environment"}
-          title={uploadsAvailable ? "Insert image" : "Image uploads not configured in this environment"}
+          aria-label={uploadsAvailable ? "Insert image (double-click inserted images to manage them)" : "Image uploads not configured in this environment"}
+          title={uploadsAvailable ? "Insert image • Tip: Double-click any inserted image to open the image manager" : "Image uploads not configured in this environment"}
           className="px-2 py-1 text-sm rounded hover:bg-gray-100 disabled:opacity-50"
         >
           {uploading ? 'Uploading...' : 'Image'}
