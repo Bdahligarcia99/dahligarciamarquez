@@ -11,10 +11,69 @@ const ImageLibrary = () => {
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedImage, setSelectedImage] = useState(null)
+  const [reconciliationStatus, setReconciliationStatus] = useState(null)
+  const [reconciling, setReconciling] = useState(false)
+  const [reconciliationHistory, setReconciliationHistory] = useState([])
 
   useEffect(() => {
     fetchImages()
+    fetchReconciliationStatus()
   }, [])
+
+  const fetchReconciliationStatus = async () => {
+    try {
+      const data = await apiAdminGet('/api/images/reconcile/status')
+      setReconciliationStatus(data)
+      setReconciliationHistory(data.reconciliation_history || [])
+    } catch (err) {
+      console.error('Error fetching reconciliation status:', err)
+      // If reconciliation endpoints aren't available, set a default state
+      setReconciliationStatus({
+        needs_reconciliation: true,
+        current_stats: { total_posts: 0, tracked_images: 0 },
+        last_reconciliation: null
+      })
+    }
+  }
+
+  const triggerReconciliation = async () => {
+    try {
+      setReconciling(true)
+      
+      // Use the API helper to ensure proper authentication
+      const result = await fetch('/api/images/reconcile', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (!result.ok) {
+        const errorText = await result.text()
+        throw new Error(`Reconciliation failed: ${result.status} - ${errorText}`)
+      }
+      
+      const data = await result.json()
+      
+      // Refresh data after reconciliation
+      await fetchImages()
+      await fetchReconciliationStatus()
+      
+      alert(`Reconciliation completed! 
+        Posts processed: ${data.stats.posts_processed}
+        Images found: ${data.stats.images_found}
+        Images added: ${data.stats.images_added}
+        Images updated: ${data.stats.images_updated}
+        Images removed: ${data.stats.images_removed}`)
+        
+    } catch (err) {
+      console.error('Reconciliation failed:', err)
+      alert('Reconciliation failed: ' + err.message)
+    } finally {
+      setReconciling(false)
+    }
+  }
 
   const fetchImages = async () => {
     try {
@@ -112,10 +171,75 @@ const ImageLibrary = () => {
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Image Library</h1>
-        <p className="text-gray-600">
-          Manage all images across your website - uploaded files, cover images, and inline content
-        </p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Image Library</h1>
+            <p className="text-gray-600">
+              Manage all images across your website - uploaded files, cover images, and inline content
+            </p>
+          </div>
+          
+          {/* Reconciliation Controls */}
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={triggerReconciliation}
+              disabled={reconciling}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                reconciling 
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
+                  : reconciliationStatus?.needs_reconciliation
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {reconciling ? (
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Reconciling...
+                </div>
+              ) : (
+                <>
+                  🔄 {reconciliationStatus?.needs_reconciliation ? 'Reconcile Now' : 'Full Reconciliation'}
+                </>
+              )}
+            </button>
+            
+            {reconciliationStatus?.last_reconciliation && (
+              <div className="text-sm text-gray-500 text-right">
+                <div>Last run: {new Date(reconciliationStatus.last_reconciliation.started_at).toLocaleDateString()}</div>
+                <div className={`font-medium ${
+                  reconciliationStatus.last_reconciliation.status === 'completed' 
+                    ? 'text-green-600' 
+                    : reconciliationStatus.last_reconciliation.status === 'failed'
+                    ? 'text-red-600'
+                    : 'text-orange-600'
+                }`}>
+                  {reconciliationStatus.last_reconciliation.status === 'completed' && '✅ Success'}
+                  {reconciliationStatus.last_reconciliation.status === 'failed' && '❌ Failed'}
+                  {reconciliationStatus.last_reconciliation.status === 'running' && '⏳ Running'}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Reconciliation Status Banner */}
+        {reconciliationStatus?.needs_reconciliation && (
+          <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="flex items-center gap-2 text-orange-800">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="font-medium">Reconciliation Recommended</span>
+            </div>
+            <p className="text-orange-700 text-sm mt-1">
+              It's been a while since the last reconciliation. Run a full scan to ensure all images are properly tracked.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Stats */}

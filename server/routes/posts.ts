@@ -23,6 +23,7 @@ import {
   createSingleResponse,
   HTTP_STATUS
 } from '../src/utils/responses.js'
+import { imageTrackingService } from '../src/services/imageTrackingService.js'
 
 const router = Router()
 
@@ -331,6 +332,17 @@ router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
         .insert(labelInserts)
     }
     
+    // Track images in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        await imageTrackingService.syncPostImages(post.id, content_rich, cover_image_url)
+        console.log(`✅ Images tracked for post ${post.id}`)
+      } catch (error) {
+        console.error(`❌ Failed to track images for post ${post.id}:`, error)
+        // Don't fail the request if image tracking fails
+      }
+    })
+    
     res.status(HTTP_STATUS.CREATED).json(createSingleResponse('post', {
       ...post,
       reading_time: Math.max(1, readingTime),
@@ -493,6 +505,20 @@ router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
       }
     }
     
+    // Update image tracking if content or cover image changed
+    if (content_rich !== undefined || cover_image_url !== undefined) {
+      setImmediate(async () => {
+        try {
+          const finalCoverUrl = cover_image_url !== undefined ? cover_image_url : null
+          await imageTrackingService.syncPostImages(id, content_rich, finalCoverUrl)
+          console.log(`✅ Images updated for post ${id}`)
+        } catch (error) {
+          console.error(`❌ Failed to update images for post ${id}:`, error)
+          // Don't fail the request if image tracking fails
+        }
+      })
+    }
+    
     res.json(createSingleResponse('post', {
       ...updatedPost,
       reading_time: Math.max(1, readingTime),
@@ -539,6 +565,17 @@ router.delete('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) =
     if (error) {
       throw error
     }
+    
+    // Clean up image tracking (post_images table has CASCADE DELETE, but let's be explicit)
+    setImmediate(async () => {
+      try {
+        await imageTrackingService.removePostImages(id)
+        console.log(`✅ Images cleaned up for deleted post ${id}`)
+      } catch (error) {
+        console.error(`❌ Failed to clean up images for deleted post ${id}:`, error)
+        // This is non-critical since CASCADE DELETE should handle it
+      }
+    })
     
     res.json({ deleted: true })
   } catch (error) {

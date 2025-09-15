@@ -247,8 +247,224 @@ router.post('/uploads/image', parseMultipartForm, requireAdmin, async (req: Mult
   }
 })
 
-// GET /api/images - Admin only: get all images (uploaded files + URLs from posts)
+// GET /api/images - Admin only: get all images (optimized with pre-computed data)
 router.get('/', requireAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Images endpoint called - starting optimized processing...')
+    
+    const { 
+      page = '1', 
+      limit = '50', 
+      source,
+      search 
+    } = req.query
+    
+    const pageNum = Math.max(1, parseInt(page as string))
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string)))
+    const offset = (pageNum - 1) * limitNum
+    
+    console.log('📊 Query params:', { page: pageNum, limit: limitNum, source, search })
+    
+    // Try Supabase first, fall back to direct PostgreSQL
+    let supabaseAdmin = null
+    let useDirectPostgres = false
+    
+    try {
+      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+      supabaseAdmin = getSupabaseAdmin()
+      
+      if (!supabaseAdmin) {
+        console.log('⚠️ Supabase admin client is null - using direct PostgreSQL')
+        useDirectPostgres = true
+      }
+    } catch (error) {
+      console.log('⚠️ Supabase not available - using direct PostgreSQL')
+      useDirectPostgres = true
+    }
+    
+    if (useDirectPostgres) {
+      return await directPostgresImageProcessing(req, res)
+    }
+    
+    console.log('🔌 Supabase admin client initialized')
+    
+    // Get uploaded images from images table
+    let uploadedImages: any[] = []
+    
+    try {
+      console.log('📁 Fetching uploaded images...')
+      const { data: uploadedImagesData, error: uploadedError } = await supabaseAdmin
+        .from('images')
+        .select(`
+          id,
+          path,
+          mime_type,
+          file_size_bytes,
+          width,
+          height,
+          is_public,
+          created_at,
+          profiles!images_owner_id_fkey (
+            display_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+      
+      if (uploadedError) {
+        console.error('❌ Error fetching uploaded images:', uploadedError)
+        // Don't throw here, just log and continue with empty array
+        uploadedImages = []
+      } else {
+        uploadedImages = uploadedImagesData || []
+        console.log(`✅ Found ${uploadedImages.length} uploaded images`)
+      }
+    } catch (error) {
+      console.error('❌ Exception fetching uploaded images:', error)
+      uploadedImages = []
+    }
+    
+    // Get post images from pre-computed table (with fallback)
+    let postImages: any[] = []
+    
+    try {
+      console.log('🗂️ Attempting to fetch from post_images table...')
+      const { data: postImagesData, error: postImagesError } = await supabaseAdmin
+        .from('post_images')
+        .select(`
+          id,
+          image_url,
+          image_type,
+          alt_text,
+          width,
+          height,
+          created_at,
+          posts!post_images_post_id_fkey (
+            id,
+            title,
+            profiles!posts_author_id_fkey (
+              display_name,
+              email
+            )
+          )
+        `)
+        .order('created_at', { ascending: false })
+      
+      if (postImagesError) {
+        console.log('❌ Error from post_images query:', postImagesError)
+        // If post_images table doesn't exist, fall back to legacy processing
+        if (postImagesError.code === '42P01' || postImagesError.message?.includes('does not exist') || postImagesError.message?.includes('relation') && postImagesError.message?.includes('not exist')) {
+          console.log('⚠️ post_images table not found, falling back to legacy processing')
+          return legacyImageProcessing(req, res)
+        }
+        throw postImagesError
+      }
+      
+      postImages = postImagesData || []
+      console.log(`✅ Found ${postImages.length} post images from optimized table`)
+    } catch (error: any) {
+      console.log('⚠️ Exception accessing post_images table, falling back to legacy processing:', error.message)
+      console.log('🔍 Error details:', error)
+      return legacyImageProcessing(req, res)
+    }
+    
+    // Format uploaded images
+    const formattedUploadedImages = (uploadedImages || []).map(img => ({
+      id: img.id,
+      url: img.path.startsWith('http') ? img.path : `/uploads/${img.path}`,
+      source: 'upload',
+      mime_type: img.mime_type,
+      file_size_bytes: img.file_size_bytes,
+      width: img.width,
+      height: img.height,
+      is_public: img.is_public,
+      created_at: img.created_at,
+      owner: img.profiles,
+      post_title: null,
+      post_id: null
+    }))
+    
+    // Format post images
+    const formattedPostImages = (postImages || []).map(img => ({
+      id: `post-${img.id}`,
+      url: img.image_url,
+      source: img.image_type === 'cover' ? 'post_cover' : 'post_inline',
+      mime_type: null,
+      file_size_bytes: null,
+      width: img.width,
+      height: img.height,
+      is_public: true,
+      created_at: img.created_at,
+      owner: img.posts?.profiles,
+      post_title: img.posts?.title,
+      post_id: img.posts?.id,
+      alt_text: img.alt_text
+    }))
+    
+    // Combine all images
+    let allImages = [...formattedUploadedImages, ...formattedPostImages]
+    
+    // Apply filters
+    if (source) {
+      allImages = allImages.filter(img => img.source === source)
+    }
+    
+    if (search && typeof search === 'string') {
+      const searchLower = search.toLowerCase()
+      allImages = allImages.filter(img => 
+        img.post_title?.toLowerCase().includes(searchLower) ||
+        img.alt_text?.toLowerCase().includes(searchLower) ||
+        img.owner?.display_name?.toLowerCase().includes(searchLower) ||
+        img.url.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    // Sort by created_at descending
+    allImages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    
+    // Apply pagination
+    const paginatedImages = allImages.slice(offset, offset + limitNum)
+    
+    console.log(`✅ Optimized endpoint: returning ${paginatedImages.length} of ${allImages.length} images`)
+    
+    res.json({
+      images: paginatedImages,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: allImages.length,
+        pages: Math.ceil(allImages.length / limitNum),
+        hasMore: offset + limitNum < allImages.length
+      },
+      stats: {
+        total: allImages.length,
+        uploaded_count: formattedUploadedImages.length,
+        post_images_count: formattedPostImages.length,
+        cover_images: formattedPostImages.filter(img => img.source === 'post_cover').length,
+        inline_images: formattedPostImages.filter(img => img.source === 'post_inline').length
+      }
+    })
+  } catch (error: any) {
+    console.error('❌ Error in optimized images endpoint:', error)
+    console.error('🔍 Error stack:', error.stack)
+    
+    // Last resort fallback to legacy processing
+    console.log('🆘 Attempting final fallback to legacy processing...')
+    try {
+      return await legacyImageProcessing(req, res)
+    } catch (legacyError) {
+      console.error('❌ Legacy fallback also failed:', legacyError)
+      res.status(500).json({ 
+        error: 'Failed to fetch images',
+        details: error.message,
+        fallback_error: legacyError.message
+      })
+    }
+  }
+})
+
+// GET /api/images/legacy - Admin only: fallback to old runtime processing
+router.get('/legacy', requireAdmin, async (req, res) => {
   try {
     console.log('Images endpoint called successfully')
     
@@ -419,6 +635,609 @@ function extractImagesFromContent(content: any, post: any, images: any[]) {
       extractImagesFromContent(value, post, images)
     }
   })
+}
+
+// POST /api/images/reconcile - Admin only: full reconciliation (monthly maintenance)
+router.post('/reconcile', requireAdmin, async (req, res) => {
+  try {
+    console.log('🔄 Starting full image reconciliation...')
+    
+    // Use direct PostgreSQL
+    const { query } = await import('../src/db.js')
+    
+    // Create reconciliation log entry
+    let reconciliationId: number
+    try {
+      const logResult = await query(`
+        INSERT INTO image_reconciliation_log (status, triggered_by)
+        VALUES ('running', 'manual')
+        RETURNING id
+      `)
+      reconciliationId = logResult.rows[0].id
+      console.log(`✅ Started reconciliation ${reconciliationId}`)
+    } catch (error: any) {
+      if (error.message?.includes('does not exist')) {
+        console.log('⚠️ image_reconciliation_log table does not exist, proceeding without logging')
+        reconciliationId = Date.now() // Use timestamp as fallback ID
+      } else {
+        console.error('Failed to log reconciliation start:', error)
+        return res.status(500).json({ error: 'Failed to start reconciliation' })
+      }
+    }
+    
+    let stats = {
+      posts_processed: 0,
+      images_found: 0,
+      images_added: 0,
+      images_updated: 0,
+      images_removed: 0
+    }
+    
+    try {
+      // Get all posts with content using direct PostgreSQL
+      const postsResult = await query(`
+        SELECT id, title, cover_image_url, content_rich 
+        FROM posts
+      `)
+      
+      const posts = postsResult.rows || []
+      console.log(`Processing ${posts.length} posts...`)
+      
+      // Import the image tracking service
+      const { imageTrackingService } = await import('../src/services/imageTrackingService.js')
+      
+      // Process each post
+      for (const post of posts) {
+        try {
+          const result = await imageTrackingService.syncPostImages(
+            post.id, 
+            post.content_rich, 
+            post.cover_image_url
+          )
+          
+          stats.posts_processed++
+          stats.images_found += result.images_found.length
+          stats.images_added += result.images_added
+          stats.images_updated += result.images_updated
+          stats.images_removed += result.images_removed
+          
+          if (stats.posts_processed % 10 === 0) {
+            console.log(`Processed ${stats.posts_processed}/${posts.length} posts...`)
+          }
+        } catch (postError) {
+          console.error(`Failed to process post ${post.id}:`, postError)
+          // Continue with other posts
+        }
+      }
+      
+      // Update reconciliation log with success (if table exists)
+      try {
+        await query(`
+          UPDATE image_reconciliation_log 
+          SET status = 'completed',
+              completed_at = NOW(),
+              posts_processed = $1,
+              images_found = $2,
+              images_added = $3,
+              images_updated = $4,
+              images_removed = $5
+          WHERE id = $6
+        `, [
+          stats.posts_processed,
+          stats.images_found,
+          stats.images_added,
+          stats.images_updated,
+          stats.images_removed,
+          reconciliationId
+        ])
+      } catch (updateError: any) {
+        if (!updateError.message?.includes('does not exist')) {
+          console.error('Failed to update reconciliation log:', updateError)
+        }
+      }
+      
+      console.log('✅ Reconciliation completed:', stats)
+      
+      res.json({
+        success: true,
+        message: 'Image reconciliation completed successfully',
+        stats,
+        reconciliation_id: reconciliationId
+      })
+      
+    } catch (error) {
+      // Update reconciliation log with failure (if table exists)
+      try {
+        await query(`
+          UPDATE image_reconciliation_log 
+          SET status = 'failed',
+              completed_at = NOW(),
+              error_message = $1,
+              posts_processed = $2,
+              images_found = $3,
+              images_added = $4,
+              images_updated = $5,
+              images_removed = $6
+          WHERE id = $7
+        `, [
+          error instanceof Error ? error.message : 'Unknown error',
+          stats.posts_processed,
+          stats.images_found,
+          stats.images_added,
+          stats.images_updated,
+          stats.images_removed,
+          reconciliationId
+        ])
+      } catch (updateError: any) {
+        if (!updateError.message?.includes('does not exist')) {
+          console.error('Failed to update reconciliation log with error:', updateError)
+        }
+      }
+      
+      throw error
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Reconciliation failed:', error)
+    res.status(500).json({ 
+      error: 'Reconciliation failed',
+      details: error.message 
+    })
+  }
+})
+
+// GET /api/images/reconcile/status - Admin only: get reconciliation history
+router.get('/reconcile/status', requireAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Reconciliation status endpoint called')
+    
+    // Try direct PostgreSQL approach
+    const { query } = await import('../src/db.js')
+    
+    let logs: any[] = []
+    let totalImages = 0
+    let totalPosts = 0
+    
+    // Get reconciliation logs (if table exists)
+    try {
+      const logsResult = await query(`
+        SELECT * FROM image_reconciliation_log 
+        ORDER BY started_at DESC 
+        LIMIT 10
+      `)
+      logs = logsResult.rows || []
+      console.log(`✅ Found ${logs.length} reconciliation logs`)
+    } catch (error: any) {
+      if (error.message?.includes('does not exist')) {
+        console.log('⚠️ image_reconciliation_log table does not exist')
+      } else {
+        console.error('❌ Error fetching reconciliation logs:', error)
+      }
+    }
+    
+    // Get current system stats
+    try {
+      const postsResult = await query('SELECT COUNT(*) as count FROM posts')
+      totalPosts = parseInt(postsResult.rows[0]?.count || '0')
+      
+      const imagesResult = await query('SELECT COUNT(*) as count FROM post_images')
+      totalImages = parseInt(imagesResult.rows[0]?.count || '0')
+    } catch (error: any) {
+      if (error.message?.includes('does not exist')) {
+        console.log('⚠️ Some tables do not exist, using fallback stats')
+        // Use fallback method to count posts
+        try {
+          const postsResult = await query('SELECT COUNT(*) as count FROM posts')
+          totalPosts = parseInt(postsResult.rows[0]?.count || '0')
+        } catch (e) {
+          console.log('⚠️ Could not count posts')
+        }
+      } else {
+        console.error('❌ Error fetching system stats:', error)
+      }
+    }
+    
+    const lastReconciliation = logs[0] || null
+    const needsReconciliation = !lastReconciliation || 
+      (lastReconciliation.status === 'failed') ||
+      (new Date().getTime() - new Date(lastReconciliation.started_at).getTime() > 30 * 24 * 60 * 60 * 1000) // 30 days
+    
+    console.log(`✅ Reconciliation status: posts=${totalPosts}, images=${totalImages}, needs_reconciliation=${needsReconciliation}`)
+    
+    res.json({
+      current_stats: {
+        total_posts: totalPosts,
+        tracked_images: totalImages
+      },
+      last_reconciliation: lastReconciliation,
+      needs_reconciliation: needsReconciliation,
+      reconciliation_history: logs
+    })
+    
+  } catch (error: any) {
+    console.error('❌ Error fetching reconciliation status:', error)
+    res.status(500).json({ 
+      error: 'Failed to fetch reconciliation status',
+      details: error.message 
+    })
+  }
+})
+
+// Legacy image processing function (fallback when post_images table doesn't exist)
+async function legacyImageProcessing(req: any, res: any) {
+  try {
+    console.log('🔄 Using legacy image processing...')
+    
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+    const supabaseAdmin = getSupabaseAdmin()
+    
+    if (!supabaseAdmin) {
+      console.error('❌ Supabase admin client is null in legacy processing - returning empty result')
+      return res.json({
+        images: [],
+        total: 0,
+        uploaded_count: 0,
+        post_images_count: 0,
+        processing_mode: 'legacy-fallback',
+        error: 'Supabase not configured'
+      })
+    }
+    
+    // Initialize empty arrays for images
+    let uploadedImages: any[] = []
+    let posts: any[] = []
+    
+    // Get uploaded images from images table
+    const { data: uploadedImagesData, error: uploadedError } = await supabaseAdmin
+      .from('images')
+      .select(`
+        id,
+        path,
+        mime_type,
+        file_size_bytes,
+        width,
+        height,
+        is_public,
+        created_at,
+        profiles!images_owner_id_fkey (
+          display_name,
+          email
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (uploadedError) {
+      console.error('Error fetching uploaded images:', uploadedError)
+    } else {
+      uploadedImages = uploadedImagesData || []
+      console.log(`Found ${uploadedImages.length} uploaded images`)
+    }
+
+    // Get images from post content (cover images and inline images)
+    const { data: postsData, error: postsError } = await supabaseAdmin
+      .from('posts')
+      .select(`
+        id,
+        title,
+        cover_image_url,
+        content_rich,
+        created_at,
+        profiles!posts_author_id_fkey (
+          display_name,
+          email
+        )
+      `)
+      .not('cover_image_url', 'is', null)
+
+    if (postsError) {
+      console.error('Error fetching posts with images:', postsError)
+    } else {
+      posts = postsData || []
+      console.log(`Found ${posts.length} posts with cover images`)
+    }
+
+    // Extract images from post content
+    const postImages: any[] = []
+    
+    // Add cover images
+    posts.forEach(post => {
+      if (post.cover_image_url) {
+        postImages.push({
+          id: `cover-${post.id}`,
+          url: post.cover_image_url,
+          source: 'post_cover',
+          post_id: post.id,
+          post_title: post.title,
+          created_at: post.created_at,
+          owner: post.profiles
+        })
+      }
+    })
+
+    // Extract inline images from rich content
+    posts.forEach(post => {
+      if (post.content_rich) {
+        try {
+          const content = JSON.parse(post.content_rich)
+          extractImagesFromContent(content, post, postImages)
+        } catch (e) {
+          // Skip invalid JSON content
+          console.warn(`Failed to parse content_rich for post ${post.id}:`, e)
+        }
+      }
+    })
+
+    // Format uploaded images
+    const formattedUploadedImages = uploadedImages.map(img => ({
+      id: img.id,
+      url: img.path.startsWith('http') ? img.path : `/uploads/${img.path}`,
+      source: 'upload',
+      mime_type: img.mime_type,
+      file_size_bytes: img.file_size_bytes,
+      width: img.width,
+      height: img.height,
+      is_public: img.is_public,
+      created_at: img.created_at,
+      owner: img.profiles
+    }))
+
+    // Combine and sort all images
+    const allImages = [...formattedUploadedImages, ...postImages]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    console.log(`✅ Legacy processing: returning ${allImages.length} total images (${formattedUploadedImages.length} uploaded, ${postImages.length} from posts)`)
+
+    res.json({
+      images: allImages,
+      total: allImages.length,
+      uploaded_count: formattedUploadedImages.length,
+      post_images_count: postImages.length,
+      processing_mode: 'legacy'
+    })
+
+  } catch (error: any) {
+    console.error('Error in legacy images processing:', error)
+    res.status(500).json({ error: 'Failed to fetch images' })
+  }
+}
+
+// Direct PostgreSQL processing function (when Supabase isn't available)
+async function directPostgresImageProcessing(req: any, res: any) {
+  try {
+    console.log('🐘 Using direct PostgreSQL processing...')
+    
+    const { query } = await import('../src/db.js')
+    
+    // Get uploaded images from images table (if it exists)
+    let uploadedImages: any[] = []
+    try {
+      const uploadedResult = await query(`
+        SELECT i.id, i.path, i.mime_type, i.file_size_bytes, 
+               i.width, i.height, i.is_public, i.created_at
+        FROM images i
+        ORDER BY i.created_at DESC
+      `)
+      uploadedImages = uploadedResult.rows || []
+      console.log(`✅ Found ${uploadedImages.length} uploaded images`)
+    } catch (error: any) {
+      if (error.message?.includes('does not exist')) {
+        console.log('⚠️ Images table does not exist, skipping uploaded images')
+      } else {
+        console.error('❌ Error fetching uploaded images:', error)
+      }
+    }
+    
+    // Get post images from post_images table (if it exists)
+    let postImages: any[] = []
+    try {
+      const postImagesResult = await query(`
+        SELECT pi.id, pi.image_url, pi.image_type, pi.alt_text,
+               pi.width, pi.height, pi.created_at,
+               p.id as post_id, p.title as post_title
+        FROM post_images pi
+        LEFT JOIN posts p ON pi.post_id = p.id
+        ORDER BY pi.created_at DESC
+      `)
+      postImages = postImagesResult.rows || []
+      console.log(`✅ Found ${postImages.length} post images from optimized table`)
+      
+      // If post_images table exists but is empty, fall back to content parsing
+      if (postImages.length === 0) {
+        console.log('⚠️ post_images table is empty, falling back to content parsing')
+        throw new Error('Empty post_images table - trigger fallback')
+      }
+    } catch (error: any) {
+      if (error.message?.includes('does not exist') || error.message?.includes('Empty post_images table')) {
+        console.log('⚠️ post_images table does not exist or is empty, falling back to content parsing')
+        // Fall back to parsing post content
+        try {
+          const postsResult = await query(`
+            SELECT id, title, cover_image_url, content_rich, created_at
+            FROM posts 
+            WHERE cover_image_url IS NOT NULL OR content_rich IS NOT NULL
+          `)
+          
+          const posts = postsResult.rows || []
+          console.log(`Found ${posts.length} posts to parse for images`)
+          
+          // Process each post
+          posts.forEach(post => {
+            // Add cover image
+            if (post.cover_image_url) {
+              postImages.push({
+                id: `cover-${post.id}`,
+                image_url: post.cover_image_url,
+                image_type: 'cover',
+                alt_text: null,
+                width: null,
+                height: null,
+                created_at: post.created_at,
+                post_id: post.id,
+                post_title: post.title,
+                display_name: null,
+                email: null
+              })
+            }
+            
+            // Parse content for inline images
+            if (post.content_rich) {
+              try {
+                // Check if content_rich is already an object or needs parsing
+                let content = post.content_rich
+                if (typeof content === 'string') {
+                  content = JSON.parse(content)
+                }
+                const inlineImages = extractImagesFromContentDirect(content, post)
+                postImages.push(...inlineImages)
+              } catch (e) {
+                console.warn(`Failed to parse content for post ${post.id}:`, e)
+              }
+            }
+          })
+          
+          // Deduplicate images by URL and type
+          const uniqueImages = []
+          const seen = new Set()
+          
+          postImages.forEach(img => {
+            const key = `${img.image_url}-${img.image_type}-${img.post_id}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              uniqueImages.push(img)
+            }
+          })
+          
+          postImages = uniqueImages
+          console.log(`✅ Parsed ${postImages.length} unique images from post content (deduplicated)`)
+        } catch (parseError) {
+          console.error('❌ Error parsing post content:', parseError)
+        }
+      } else {
+        console.error('❌ Error fetching post images:', error)
+      }
+    }
+    
+    // Format uploaded images
+    const formattedUploadedImages = uploadedImages.map(img => ({
+      id: img.id,
+      url: img.path?.startsWith('http') ? img.path : `/uploads/${img.path}`,
+      source: 'upload',
+      mime_type: img.mime_type,
+      file_size_bytes: img.file_size_bytes,
+      width: img.width,
+      height: img.height,
+      is_public: img.is_public,
+      created_at: img.created_at,
+      owner: {
+        display_name: null,
+        email: null
+      },
+      post_title: null,
+      post_id: null
+    }))
+    
+    // Format post images
+    const formattedPostImages = postImages.map(img => ({
+      id: `post-${img.id || Math.random()}`,
+      url: img.image_url,
+      source: img.image_type === 'cover' ? 'post_cover' : 'post_inline',
+      mime_type: null,
+      file_size_bytes: null,
+      width: img.width,
+      height: img.height,
+      is_public: true,
+      created_at: img.created_at,
+      owner: {
+        display_name: null,
+        email: null
+      },
+      post_title: img.post_title,
+      post_id: img.post_id,
+      alt_text: img.alt_text
+    }))
+    
+    // Combine all images
+    const allImages = [...formattedUploadedImages, ...formattedPostImages]
+    
+    // Sort by created_at descending
+    allImages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    
+    console.log(`✅ Direct PostgreSQL: returning ${allImages.length} total images (${formattedUploadedImages.length} uploaded, ${formattedPostImages.length} from posts)`)
+    
+    res.json({
+      images: allImages,
+      pagination: {
+        page: 1,
+        limit: 50,
+        total: allImages.length,
+        pages: 1,
+        hasMore: false
+      },
+      stats: {
+        total: allImages.length,
+        uploaded_count: formattedUploadedImages.length,
+        post_images_count: formattedPostImages.length,
+        cover_images: formattedPostImages.filter(img => img.source === 'post_cover').length,
+        inline_images: formattedPostImages.filter(img => img.source === 'post_inline').length
+      },
+      processing_mode: 'direct-postgres'
+    })
+
+  } catch (error: any) {
+    console.error('❌ Error in direct PostgreSQL processing:', error)
+    res.status(500).json({ 
+      error: 'Failed to fetch images',
+      details: error.message,
+      processing_mode: 'direct-postgres-error'
+    })
+  }
+}
+
+// Helper function to extract images from content (direct version)
+function extractImagesFromContentDirect(content: any, post: any): any[] {
+  const images: any[] = []
+  
+  if (!content || typeof content !== 'object') {
+    return images
+  }
+  
+  if (Array.isArray(content)) {
+    content.forEach(item => {
+      images.push(...extractImagesFromContentDirect(item, post))
+    })
+    return images
+  }
+  
+  // Handle image nodes
+  if (content.type === 'image' && content.attrs?.src) {
+    images.push({
+      id: `inline-${post.id}-${images.length}`,
+      image_url: content.attrs.src,
+      image_type: 'inline',
+      alt_text: content.attrs.alt || null,
+      width: content.attrs.width || null,
+      height: content.attrs.height || null,
+      created_at: post.created_at,
+      post_id: post.id,
+      post_title: post.title,
+      display_name: null,
+      email: null
+    })
+  }
+  
+  // Recursively check nested content
+  if (content.content) {
+    images.push(...extractImagesFromContentDirect(content.content, post))
+  }
+  
+  // Check other properties that might contain nested content
+  Object.values(content).forEach(value => {
+    if (typeof value === 'object') {
+      images.push(...extractImagesFromContentDirect(value, post))
+    }
+  })
+  
+  return images
 }
 
 export default router
