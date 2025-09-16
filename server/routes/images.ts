@@ -1118,23 +1118,34 @@ async function directPostgresImageProcessing(req: any, res: any) {
     }
     
     // Format uploaded images
-    const formattedUploadedImages = uploadedImages.map(img => ({
-      id: img.id,
-      url: img.path?.startsWith('http') ? img.path : `/uploads/${img.path}`,
-      source: 'upload',
-      mime_type: img.mime_type,
-      file_size_bytes: img.file_size_bytes,
-      width: img.width,
-      height: img.height,
-      is_public: img.is_public,
-      created_at: img.created_at,
-      owner: {
-        display_name: null,
-        email: null
-      },
-      post_title: null,
-      post_id: null
-    }))
+    const formattedUploadedImages = uploadedImages.map(img => {
+      // Ensure uploaded images use absolute URLs to the API server
+      const finalUrl = img.path?.startsWith('http') ? img.path : `http://localhost:8080/uploads/${img.path}`
+      
+      console.log('🖼️ Formatting uploaded image:', {
+        id: img.id,
+        originalPath: img.path,
+        finalUrl: finalUrl
+      })
+      
+      return {
+        id: img.id,
+        url: finalUrl,
+        source: 'upload',
+        mime_type: img.mime_type,
+        file_size_bytes: img.file_size_bytes,
+        width: img.width,
+        height: img.height,
+        is_public: img.is_public,
+        created_at: img.created_at,
+        owner: {
+          display_name: null,
+          email: null
+        },
+        post_title: null,
+        post_id: null
+      }
+    })
     
     // Format post images
     const formattedPostImages = postImages.map(img => ({
@@ -1239,5 +1250,150 @@ function extractImagesFromContentDirect(content: any, post: any): any[] {
   
   return images
 }
+
+// POST /api/images/metadata - Store image metadata in images table (for library)
+router.post('/metadata', requireAdmin, async (req, res) => {
+  try {
+    const { path, mime_type, file_size_bytes, width, height, is_public } = req.body
+
+    if (!path || !mime_type) {
+      return res.status(400).json({ error: 'Missing required fields: path, mime_type' })
+    }
+
+    // Get admin user ID from the request (set by requireAdmin middleware)
+    const adminUserId = (req as any).adminUserId || 'admin-system'
+    console.log('🔍 Admin User ID from request:', adminUserId)
+
+    // Try Supabase first, fall back to direct PostgreSQL
+    let supabaseAdmin = null
+    try {
+      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+      supabaseAdmin = getSupabaseAdmin()
+    } catch (error) {
+      console.log('⚠️ Supabase not available for metadata storage')
+    }
+
+    if (supabaseAdmin) {
+      // Use Supabase - find existing profile or create system admin
+      let ownerId = adminUserId
+      
+      try {
+        // Try to find any existing profile
+        const { data: profiles, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .order('created_at', { ascending: true })
+          .limit(1)
+
+        if (profileError) throw profileError
+
+        if (profiles && profiles.length > 0) {
+          ownerId = profiles[0].id
+          console.log('✅ Found existing profile (Supabase), using ID:', ownerId)
+        } else {
+          // Create system admin profile
+          const systemAdminId = '00000000-0000-0000-0000-000000000001'
+          const { error: createError } = await supabaseAdmin
+            .from('profiles')
+            .upsert({
+              id: systemAdminId,
+              display_name: 'System Admin'
+            })
+
+          if (createError) throw createError
+          
+          ownerId = systemAdminId
+          console.log('✅ Created system admin profile (Supabase) with ID:', ownerId)
+        }
+      } catch (profileError) {
+        console.warn('❌ Supabase profile lookup failed:', profileError)
+        throw new Error(`Cannot determine valid owner_id: ${profileError.message}`)
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('images')
+        .insert({
+          path,
+          mime_type,
+          file_size_bytes,
+          width,
+          height,
+          is_public: is_public !== false, // Default to true
+          owner_id: ownerId
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Supabase metadata storage error:', error)
+        throw error
+      }
+
+      res.json({ success: true, id: data.id })
+    } else {
+      // Use direct PostgreSQL - try to find or create a system admin user
+      const { query } = await import('../src/db.js')
+      
+      // First, try to get a system admin user ID
+      let ownerId = adminUserId
+      console.log('🔍 Initial owner ID:', ownerId)
+      
+      try {
+        // First, try to find ANY existing profile to use as owner
+        const anyProfileQuery = await query(`
+          SELECT id FROM profiles 
+          ORDER BY created_at ASC
+          LIMIT 1
+        `)
+        
+        console.log('🔍 Any profile query result:', anyProfileQuery.rows)
+        
+        if (anyProfileQuery.rows.length > 0) {
+          ownerId = anyProfileQuery.rows[0].id
+          console.log('✅ Found existing profile, using ID:', ownerId)
+        } else {
+          // If no profiles exist, create a system admin profile
+          console.log('⚠️ No profiles found, creating system admin profile...')
+          const systemAdminId = '00000000-0000-0000-0000-000000000001' // Different from before
+          
+          try {
+            await query(`
+              INSERT INTO profiles (id, display_name, created_at, updated_at)
+              VALUES ($1, $2, NOW(), NOW())
+              ON CONFLICT (id) DO NOTHING
+            `, [systemAdminId, 'System Admin'])
+            
+            ownerId = systemAdminId
+            console.log('✅ Created system admin profile with ID:', ownerId)
+          } catch (createError) {
+            console.error('❌ Failed to create system admin profile:', createError)
+            // Last resort: try to find the first profile again or fail gracefully
+            throw new Error('Cannot create system admin profile and no existing profiles found')
+          }
+        }
+      } catch (profileError) {
+        console.warn('❌ Profile lookup/creation failed:', profileError)
+        throw new Error(`Cannot determine valid owner_id: ${profileError.message}`)
+      }
+      
+      console.log('🎯 Final owner ID to use:', ownerId)
+
+      const result = await query(`
+        INSERT INTO images (path, mime_type, file_size_bytes, width, height, is_public, owner_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+      `, [path, mime_type, file_size_bytes, width, height, is_public !== false, ownerId])
+
+      res.json({ success: true, id: result.rows[0].id })
+    }
+
+  } catch (error: any) {
+    console.error('Error storing image metadata:', error)
+    res.status(500).json({ 
+      error: 'Failed to store image metadata',
+      details: error.message 
+    })
+  }
+})
 
 export default router

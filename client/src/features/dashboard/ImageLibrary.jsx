@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { apiAdminGet } from '../../lib/api'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ImageBadge from '../../components/editor/ImageBadge'
+import ImagePicker from '../../components/editor/ImagePicker'
 import { detectImageType, formatImageTooltip } from '../../utils/imageTypeDetection'
 
 const ImageLibrary = () => {
@@ -14,6 +15,8 @@ const ImageLibrary = () => {
   const [reconciliationStatus, setReconciliationStatus] = useState(null)
   const [reconciling, setReconciling] = useState(false)
   const [reconciliationHistory, setReconciliationHistory] = useState([])
+  const [imagePickerOpen, setImagePickerOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     fetchImages()
@@ -75,12 +78,149 @@ const ImageLibrary = () => {
     }
   }
 
+  const handleImageUpload = async (file) => {
+    if (!file) return null
+
+    setUploading(true)
+    try {
+      // Validate file
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      if (file.size > maxSize) {
+        throw new Error(`File size must be less than ${maxSize / 1024 / 1024}MB`)
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Only JPEG, PNG, WebP, and GIF images are allowed')
+      }
+
+      // Use admin token for authentication
+      const adminToken = localStorage.getItem('adminToken')
+      if (!adminToken) {
+        throw new Error('Admin authentication required to upload images')
+      }
+
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append('image', file)
+
+      // Upload via admin API endpoint
+      const response = await fetch('/api/images/uploads/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Upload successful:', result)
+      console.log('📁 Upload result details:', {
+        url: result.url,
+        path: result.path,
+        hasMetadata: !!result.width && !!result.height
+      })
+      
+      // Now store the image metadata in the images table so it appears in the library
+      try {
+        console.log('💾 Storing image metadata for library...')
+        const metadataResponse = await fetch('/api/images/metadata', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            path: result.path,
+            mime_type: file.type,
+            file_size_bytes: file.size,
+            width: result.width,
+            height: result.height,
+            is_public: true
+          })
+        })
+        
+        if (metadataResponse.ok) {
+          console.log('✅ Image metadata stored successfully')
+        } else {
+          console.warn('⚠️ Failed to store image metadata:', await metadataResponse.text())
+        }
+      } catch (metadataError) {
+        console.warn('⚠️ Could not store image metadata:', metadataError)
+      }
+      
+      return result.url || result.publicUrl
+    } catch (error) {
+      console.error('Image upload failed:', error)
+      alert(error instanceof Error ? error.message : 'Image upload failed')
+      return null
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleImagePickerConfirm = async (payload) => {
+    setImagePickerOpen(false)
+    
+    if (payload.file) {
+      // Handle file upload
+      const uploadedUrl = await handleImageUpload(payload.file)
+      if (uploadedUrl) {
+        console.log('🔄 Refreshing image library after upload...')
+        
+        // Refresh the image library to show the new upload
+        await fetchImages()
+        
+        // Switch to uploaded files filter to show the result
+        setFilter('uploaded_files')
+        
+        console.log('📊 Library refreshed, current filter:', 'uploaded_files')
+        
+        // Show success message
+        alert(`Image uploaded successfully! It will appear in the "Uploaded Files" section.`)
+      }
+    } else if (payload.url) {
+      // For URL-based images, we don't upload them directly to our storage
+      // Instead, we could add them to a "bookmarks" or "external images" collection
+      alert('URL-based images are not stored in the library. They remain as external references.')
+    }
+  }
+
   const fetchImages = async () => {
     try {
       setLoading(true)
       setError(null)
       const data = await apiAdminGet('/api/images')
-      setImages(data.images || [])
+      const images = data.images || []
+      
+      // Debug: Show upload count for troubleshooting
+      const uploadCount = images.filter(img => img.source === 'upload').length
+      console.log('📊 Images fetched:', {
+        total: images.length,
+        uploaded: uploadCount,
+        sources: images.reduce((acc, img) => {
+          acc[img.source] = (acc[img.source] || 0) + 1
+          return acc
+        }, {}),
+        recentUploads: images
+          .filter(img => img.source === 'upload')
+          .slice(0, 3)
+          .map(img => ({ url: img.url, created_at: img.created_at })),
+        uploadedImageUrls: images
+          .filter(img => img.source === 'upload')
+          .map(img => img.url)
+      })
+      
+      if (uploadCount === 0) {
+        console.log('ℹ️ No uploaded files found. All images are from post content.')
+      }
+      
+      setImages(images)
     } catch (err) {
       console.error('Error fetching images:', err)
       setError(err.message)
@@ -95,11 +235,12 @@ const ImageLibrary = () => {
     if (filter === 'all') {
       matchesFilter = true
     } else if (filter === 'uploaded_files') {
+      // Check both source property and URL pattern for uploaded files
       const imageType = detectImageType(image.url)
-      matchesFilter = imageType.isUpload
+      matchesFilter = image.source === 'upload' || imageType.isUpload
     } else if (filter === 'external_urls') {
       const imageType = detectImageType(image.url)
-      matchesFilter = !imageType.isUpload
+      matchesFilter = !imageType.isUpload && image.source !== 'upload'
     } else {
       matchesFilter = image.source === filter
     }
@@ -179,8 +320,37 @@ const ImageLibrary = () => {
             </p>
           </div>
           
-          {/* Reconciliation Controls */}
-          <div className="flex flex-col items-end gap-2">
+          {/* Upload and Reconciliation Controls */}
+          <div className="flex flex-col items-end gap-3">
+            {/* Upload Button */}
+            <button
+              onClick={() => setImagePickerOpen(true)}
+              disabled={uploading}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                uploading
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500'
+              }`}
+            >
+              {uploading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Upload Images
+                </>
+              )}
+            </button>
+            
+            {/* Reconciliation Button */}
             <button
               onClick={triggerReconciliation}
               disabled={reconciling}
@@ -293,11 +463,10 @@ const ImageLibrary = () => {
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Sources</option>
-              <option value="upload">📁 Uploaded Files</option>
+              <option value="uploaded_files">📁 Uploaded Files</option>
               <option value="post_cover">🖼️ Cover Images</option>
               <option value="post_inline">📝 Inline Images</option>
-              <option value="uploaded_files">⬆️ All Uploads</option>
-              <option value="external_urls">🔗 All External URLs</option>
+              <option value="external_urls">🔗 External URLs</option>
             </select>
           </div>
         </div>
@@ -311,12 +480,16 @@ const ImageLibrary = () => {
           </svg>
           <h3 className="mt-2 text-sm font-medium text-gray-900">No images found</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {searchTerm || filter !== 'all' ? 'Try adjusting your search or filter criteria.' : 'Upload some images or create posts with images to get started.'}
+            {filter === 'uploaded_files' 
+              ? 'No uploaded files found. Use the image upload button in the post editor to add images to your library.' 
+              : searchTerm || filter !== 'all' 
+                ? 'Try adjusting your search or filter criteria.' 
+                : 'Upload some images or create posts with images to get started.'}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {filteredImages.map((image) => {
+          {filteredImages.map((image, index) => {
             const imageType = detectImageType(image.url)
             const metadata = {
               ...imageType,
@@ -328,12 +501,12 @@ const ImageLibrary = () => {
             
             return (
               <div
-                key={image.id}
-                className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer group"
+                key={`${image.id}-${index}`}
+                className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer group flex flex-col"
                 onClick={() => setSelectedImage(image)}
                 title={enhancedTooltip}
               >
-                <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
+                <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100 flex-shrink-0">
                   <img
                     src={image.url}
                     alt={image.alt_text || 'Image'}
@@ -342,8 +515,9 @@ const ImageLibrary = () => {
                         ? 'ring-2 ring-blue-200 ring-opacity-0 group-hover:ring-opacity-100' 
                         : 'ring-2 ring-orange-200 ring-opacity-0 group-hover:ring-opacity-100'
                     }`}
+                    style={{ maxWidth: '100%', maxHeight: '100%' }}
                     onError={(e) => {
-                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgMTZsNC41ODYtNC41ODZhMiAyIDAgMDEyLjgyOCAwTDE2IDE2bS0yLTJsMS41ODYtMS41ODZhMiAyIDAgMDEyLjgyOCAwTDIwIDE0bS02LTZoLjAxTTYgMjBoMTJhMiAyIDAgMDAyLTJWNmEyIDIgMCAwMC0yLTJINmEyIDIgMCAwMC0yIDJ2MTJhMiAyIDAgMDAyIDJ6IiBzdHJva2U9IiM5Q0E3QjEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo='
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgMTZsNC41ODYtNC41ODZhMiAyIDAgMDEyLjgyOCAwTDE2IDE2bS0yLTJsMS41ODYtMS41ODZhMiAyIDAgMDEyLjgyOCAwTDIwIDE0bS02LTZoLj01TTYgMjBoMTJhMiAyIDAgMDAyLTJWNmEyIDIgMCAwMC0yLTJINmEyIDIgMCAwMC0yIDJ2MTJhMiAyIDAgMDAyIDJ6IiBzdHJva2U9IiM5Q0E3QjEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo='
                     }}
                   />
                   
@@ -369,18 +543,20 @@ const ImageLibrary = () => {
                   )}
                 </div>
                 
-                <div className="p-3">
-                <div className="text-sm text-gray-900 font-medium truncate">
-                  {image.post_title || 'Uploaded Image'}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {formatDate(image.created_at)}
-                </div>
-                {image.file_size_bytes && (
-                  <div className="text-xs text-gray-500">
-                    {formatFileSize(image.file_size_bytes)}
+                <div className="p-3 flex-grow flex flex-col justify-between min-h-0">
+                  <div className="text-sm text-gray-900 font-medium truncate">
+                    {image.post_title || 'Uploaded Image'}
                   </div>
-                )}
+                  <div className="mt-1 space-y-1">
+                    <div className="text-xs text-gray-500">
+                      {formatDate(image.created_at)}
+                    </div>
+                    {image.file_size_bytes && (
+                      <div className="text-xs text-gray-500">
+                        {formatFileSize(image.file_size_bytes)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )
@@ -489,6 +665,13 @@ const ImageLibrary = () => {
           </div>
         </div>
       )}
+      
+      {/* Image Upload Modal */}
+      <ImagePicker
+        open={imagePickerOpen}
+        onClose={() => setImagePickerOpen(false)}
+        onConfirm={handleImagePickerConfirm}
+      />
     </div>
   )
 }
