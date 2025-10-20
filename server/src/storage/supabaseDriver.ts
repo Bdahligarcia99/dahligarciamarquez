@@ -1,4 +1,4 @@
-import { StorageDriver } from './driver.js';
+import { StorageDriver } from './driver.ts';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 

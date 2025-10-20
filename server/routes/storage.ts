@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { storage, storageInfo } from '../src/storage/index.js';
+import { storage, storageInfo } from '../src/storage/index.ts';
 
 const router = Router();
 

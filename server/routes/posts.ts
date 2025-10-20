@@ -1,12 +1,12 @@
 // Posts API routes with Supabase integration
 import { Router } from 'express'
-import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
-import { requireUser } from '../middleware/requireUser.js'
-import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.js'
-import { AuthenticatedRequest } from '../middleware/requireUser.js'
-import { slugify, validateSlugAvailability } from '../src/utils/slugify.js'
-import { extractTextFromRichContent } from '../src/utils/contentExtractor.js'
-import { sanitizePostHtml, calculateReadingTime, extractTextFromHtml } from '../src/utils/sanitizeHtml.js'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.ts'
+import { requireUser } from '../middleware/requireUser.ts'
+import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
+import { AuthenticatedRequest } from '../middleware/requireUser.ts'
+import { slugify, validateSlugAvailability } from '../src/utils/slugify.ts'
+import { extractTextFromRichContent } from '../src/utils/contentExtractor.ts'
+import { sanitizePostHtml, calculateReadingTime, extractTextFromHtml } from '../src/utils/sanitizeHtml.ts'
 import { 
   validateTitle, 
   validateExcerpt, 
@@ -15,14 +15,14 @@ import {
   validateRichContent,
   createValidationErrorResponse,
   ValidationError 
-} from '../src/utils/validation.js'
+} from '../src/utils/validation.ts'
 import {
   createErrorResponse,
   createListResponse,
   createSingleResponse,
   HTTP_STATUS
-} from '../src/utils/responses.js'
-import { imageTrackingService } from '../src/services/imageTrackingService.js'
+} from '../src/utils/responses.ts'
+import { imageTrackingService } from '../src/services/imageTrackingService.ts'
 
 const router = Router()
 

@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { getSupabaseAdmin } from '../auth/supabaseAdmin'
-import { requireUser } from '../middleware/requireUser'
-import type { AuthenticatedRequest } from '../middleware/requireUser'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.ts'
+import { requireUser } from '../middleware/requireUser.ts'
+import type { AuthenticatedRequest } from '../middleware/requireUser.ts'
 
 const router = Router()
 

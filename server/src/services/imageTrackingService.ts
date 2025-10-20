@@ -5,7 +5,7 @@
  * image library. It extracts images from post content and maintains the post_images table.
  */
 
-import { getSupabaseAdmin } from '../../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
 export interface ImageReference {
   url: string

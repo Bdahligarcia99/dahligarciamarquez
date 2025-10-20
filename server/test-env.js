@@ -9,7 +9,7 @@ console.log('DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ Missing
 console.log('PORT:', process.env.PORT || 'Using default')
 
 // Test Supabase admin creation
-import { getSupabaseAdmin, isSupabaseAdminConfigured } from './auth/supabaseAdmin.js'
+import { getSupabaseAdmin, isSupabaseAdminConfigured } from './auth/supabaseAdmin.ts'
 console.log('🔑 Supabase Admin Configured:', isSupabaseAdminConfigured)
 
 if (isSupabaseAdminConfigured) {

@@ -1,4 +1,4 @@
-import { StorageDriver } from './driver.js';
+import { StorageDriver } from './driver.ts';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';

@@ -1,6 +1,6 @@
-import { StorageDriver } from './driver.js';
-import { LocalStorageDriver } from './localDriver.js';
-import { SupabaseStorageDriver } from './supabaseDriver.js';
+import { StorageDriver } from './driver.ts';
+import { LocalStorageDriver } from './localDriver.ts';
+import { SupabaseStorageDriver } from './supabaseDriver.ts';
 
 const DRIVER = (process.env.STORAGE_DRIVER || 'local').toLowerCase(); // 'local' | 'supabase'
 

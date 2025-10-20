@@ -1,6 +1,6 @@
 // Labels API routes
 import { Router } from 'express'
-import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../auth/supabaseAdmin.ts'
 import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 

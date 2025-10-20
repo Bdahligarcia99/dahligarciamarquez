@@ -1,8 +1,8 @@
 // Images metadata API routes
 import { Router } from 'express'
 import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
-import { parseMultipartForm, MulterRequest } from '../src/middleware/multipart.js'
-import { storage } from '../src/storage/index.js'
+import { parseMultipartForm, MulterRequest } from '../src/middleware/multipart.ts'
+import { storage } from '../src/storage/index.ts'
 
 // Image processing dependencies
 let sharp: any
@@ -270,7 +270,7 @@ router.get('/', requireSupabaseAdmin, async (req, res) => {
     let useDirectPostgres = false
     
     try {
-      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
       supabaseAdmin = getSupabaseAdmin()
       
       if (!supabaseAdmin) {
@@ -473,7 +473,7 @@ router.get('/legacy', requireSupabaseAdmin, async (req, res) => {
     let posts: any[] = []
     
     try {
-      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
       const supabaseAdmin = getSupabaseAdmin()
       
       console.log('Supabase admin client initialized')
@@ -868,7 +868,7 @@ async function legacyImageProcessing(req: any, res: any) {
   try {
     console.log('🔄 Using legacy image processing...')
     
-    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
     const supabaseAdmin = getSupabaseAdmin()
     
     if (!supabaseAdmin) {
@@ -1267,7 +1267,7 @@ router.post('/metadata', requireSupabaseAdmin, async (req, res) => {
     // Try Supabase first, fall back to direct PostgreSQL
     let supabaseAdmin = null
     try {
-      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.js')
+      const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
       supabaseAdmin = getSupabaseAdmin()
     } catch (error) {
       console.log('⚠️ Supabase not available for metadata storage')

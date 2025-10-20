@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '../../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
 // Reserved words that cannot be used as slugs
 const RESERVED_WORDS = [

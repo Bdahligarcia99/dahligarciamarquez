@@ -1,5 +1,5 @@
 import { Request } from 'express'
-import { getSupabaseAdmin } from '../../auth/supabaseAdmin.js'
+import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
 /**
  * File upload constraints

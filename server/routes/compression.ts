@@ -2,7 +2,7 @@
 import { Router } from 'express'
 import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
 import { CompressionService, CompressionOptions } from '../src/services/compressionService.ts'
-import { storage } from '../src/storage/index.js'
+import { storage } from '../src/storage/index.ts'
 import { query } from '../src/db.ts'
 
 const router = Router()
