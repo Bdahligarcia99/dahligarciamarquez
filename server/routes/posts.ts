@@ -2,8 +2,7 @@
 import { Router } from 'express'
 import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
 import { requireUser } from '../middleware/requireUser.js'
-import { requireAdmin } from '../middleware/requireAdmin.ts'
-import { requireAdminOrUser, AdminOrUserRequest } from '../src/middleware/requireAdminOrUser.js'
+import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.js'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 import { slugify, validateSlugAvailability } from '../src/utils/slugify.js'
 import { extractTextFromRichContent } from '../src/utils/contentExtractor.js'
@@ -90,7 +89,7 @@ router.get('/', async (req, res) => {
 })
 
 // GET /api/posts/admin - Admin only: all posts with filtering
-router.get('/admin', requireAdmin, async (req: AuthenticatedRequest, res) => {
+router.get('/admin', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { 
       page = '1', 
@@ -200,7 +199,7 @@ router.get('/:id', async (req, res) => {
 })
 
 // POST /api/posts - Create new post (admin token or authenticated user required)
-router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
+router.post('/', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { 
       title, 
@@ -355,7 +354,7 @@ router.post('/', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
 })
 
 // PUT /api/posts/:id - Update post (admin token or author)
-router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
+router.put('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params
     const { 
@@ -531,7 +530,7 @@ router.put('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
 })
 
 // DELETE /api/posts/:id - Delete post (admin token or author)
-router.delete('/:id', requireAdminOrUser, async (req: AdminOrUserRequest, res) => {
+router.delete('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params
     

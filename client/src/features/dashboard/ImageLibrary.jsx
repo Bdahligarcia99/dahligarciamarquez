@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { apiAdminGet } from '../../lib/api'
+import { supabaseAdminGet } from '../../lib/api'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import ImageBadge from '../../components/editor/ImageBadge'
 import ImagePicker from '../../components/editor/ImagePicker'
@@ -25,7 +25,7 @@ const ImageLibrary = () => {
 
   const fetchReconciliationStatus = async () => {
     try {
-      const data = await apiAdminGet('/api/images/reconcile/status')
+      const data = await supabaseAdminGet('/api/images/reconcile/status')
       setReconciliationStatus(data)
       setReconciliationHistory(data.reconciliation_history || [])
     } catch (err) {
@@ -195,7 +195,7 @@ const ImageLibrary = () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await apiAdminGet('/api/images')
+      const data = await supabaseAdminGet('/api/images')
       const images = data.images || []
       
       // Debug: Show upload count for troubleshooting

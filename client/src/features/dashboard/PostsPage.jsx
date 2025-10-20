@@ -1,11 +1,11 @@
 // client/src/features/dashboard/PostsPage.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiAdminGet, apiAdminDelete } from '../../lib/api'
+import { supabaseAdminGet, supabaseAdminDelete } from '../../lib/api'
 import { isHTTPError } from '../../lib/httpErrors'
 import PostFormModal from './components/PostFormModal'
 import StatusBadge from './components/StatusBadge'
-import AdminTokenControls from './components/AdminTokenControls'
+// Removed AdminTokenControls - using Supabase JWT auth now
 
 const PostsPage = () => {
   const navigate = useNavigate()
@@ -39,7 +39,7 @@ const PostsPage = () => {
     try {
       setLoading(true)
       setError(null)
-      const postsData = await apiAdminGet('/api/posts')
+      const postsData = await supabaseAdminGet('/api/posts')
       // Handle both old format (array) and new format (object with items)
       setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
     } catch (err) {
@@ -67,7 +67,7 @@ const PostsPage = () => {
 
     try {
       setDeletingId(postId)
-      await apiAdminDelete(`/api/posts/${postId}`)
+      await supabaseAdminDelete(`/api/posts/${postId}`)
       
       // Optimistic update
       setPosts(prev => prev.filter(post => post.id !== postId))
@@ -127,19 +127,29 @@ const PostsPage = () => {
           <div className="p-8">
             {isHTTPError(error, 500) ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded">
-                <h3 className="font-medium text-red-800 mb-2">Admin token not configured on server</h3>
+                <h3 className="font-medium text-red-800 mb-2">Server configuration issue</h3>
                 <p className="text-sm text-red-700 mb-2">
-                  Set <code className="bg-red-100 px-1 rounded">ADMIN_TOKEN</code> in your server environment and redeploy (Clear build cache).
+                  There may be a server configuration issue. Please check the server logs.
                 </p>
-                <AdminTokenControls onAfter={fetchPosts} />
+                <button 
+                  onClick={fetchPosts}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Retry
+                </button>
               </div>
             ) : isHTTPError(error, 401) ? (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
-                <h3 className="font-medium text-yellow-800 mb-2">Admin access required</h3>
-                <p className="text-sm text-yellow-700 mb-2">
-                  Your browser session has no admin token or it's invalid.
+              <div className="p-4 bg-red-50 border border-red-200 rounded">
+                <h3 className="font-medium text-red-800 mb-2">Authentication required</h3>
+                <p className="text-sm text-red-700 mb-2">
+                  Please sign in to access admin features.
                 </p>
-                <AdminTokenControls onAfter={fetchPosts} />
+                <button 
+                  onClick={() => navigate('/auth/signin')}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Sign In
+                </button>
               </div>
             ) : (
               <div className="p-4 bg-red-50 border border-red-200 rounded">

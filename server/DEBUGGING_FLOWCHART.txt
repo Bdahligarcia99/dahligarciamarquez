@@ -1,0 +1,195 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    SUPABASE DEBUGGING WORKFLOW                            ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+                              START HERE
+                                  │
+                                  ▼
+                    ┌─────────────────────────┐
+                    │  Getting errors about   │
+                    │  Supabase not working?  │
+                    └───────────┬─────────────┘
+                                │
+                                ▼
+                ╔═══════════════════════════════════╗
+                ║  STEP 1: Run Diagnostic Script   ║
+                ║                                   ║
+                ║  $ cd server                      ║
+                ║  $ npm run debug:supabase         ║
+                ╚═══════════════════════════════════╝
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │  Do you see ❌ marks? │
+                    └─────┬─────────────┬───┘
+                          │             │
+                     YES  │             │ NO (all ✅)
+                          ▼             ▼
+        ┌─────────────────────────┐   ┌──────────────────┐
+        │  Fix Missing Variables  │   │  Config is good! │
+        │                         │   │  Go to STEP 2    │
+        │  1. Check .env exists   │   └────────┬─────────┘
+        │     in server/ dir      │            │
+        │  2. Add missing values  │            │
+        │  3. No spaces: KEY=val  │            │
+        │  4. Restart server      │            │
+        └─────────┬───────────────┘            │
+                  │                             │
+                  │  Run diagnostic again       │
+                  └──────────┬──────────────────┘
+                             │
+                             ▼
+                ╔═══════════════════════════════════╗
+                ║  STEP 2: Enable Debug Logging    ║
+                ║                                   ║
+                ║  Add to server/.env:              ║
+                ║  DEBUG_SUPABASE=true              ║
+                ║                                   ║
+                ║  $ npm run dev:debug              ║
+                ╚═══════════════════════════════════╝
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │  Try your operation      │
+                │  that was failing        │
+                └────────┬─────────────────┘
+                         │
+                         ▼
+            ┌────────────────────────────────┐
+            │  Check Server Logs             │
+            │                                │
+            │  Look for the FIRST ❌ error   │
+            └────────┬─────────┬─────────────┘
+                     │         │
+      ┌──────────────┴─────┬───┴──────────────────┐
+      ▼                    ▼                       ▼
+┌─────────────┐    ┌─────────────┐      ┌──────────────────┐
+│ No auth     │    │ JWT failed  │      │ Profile not      │
+│ header      │    │ verification│      │ found            │
+└──────┬──────┘    └──────┬──────┘      └────────┬─────────┘
+       │                  │                       │
+       ▼                  ▼                       ▼
+┌──────────────┐  ┌────────────────┐   ┌─────────────────┐
+│ Frontend not │  │ Wrong key or   │   │ Run database    │
+│ sending      │  │ expired token  │   │ migrations      │
+│ Bearer token │  │                │   │                 │
+└──────────────┘  └────────────────┘   └─────────────────┘
+
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │  Issue Fixed?            │
+                └─────┬──────────────┬─────┘
+                      │              │
+                 YES  │              │ NO
+                      ▼              ▼
+            ┌─────────────┐   ┌──────────────────┐
+            │   SUCCESS!  │   │  Check docs:     │
+            │             │   │                  │
+            │   You can   │   │  - DEBUG_QUICK_  │
+            │   now turn  │   │    START.md      │
+            │   off debug │   │  - DEBUGGING_    │
+            │   mode      │   │    SUPABASE.md   │
+            └─────────────┘   └──────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                       DEBUGGING TOOL REFERENCE                            ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  🔍 DIAGNOSTIC SCRIPT                                                     ║
+║     Command: npm run debug:supabase                                       ║
+║     Use When: First step for any config issue                            ║
+║     Shows: What variables are missing/wrong                               ║
+║                                                                           ║
+║  📝 DEBUG MODE                                                            ║
+║     Command: npm run dev:debug                                            ║
+║     Use When: Config looks good but still failing                         ║
+║     Shows: Every authentication step in real-time                         ║
+║                                                                           ║
+║  📚 DOCUMENTATION                                                         ║
+║     DEBUG_QUICK_START.md      → 5-minute quick fix                       ║
+║     DEBUGGING_SUPABASE.md     → Complete troubleshooting                 ║
+║     DEBUGGING_TOOLS_SUMMARY.md → Tool overview                           ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                      COMMON ERROR PATTERNS                                ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  ERROR: "Supabase admin not configured"                                   ║
+║  FIX: Run diagnostic script, add missing variables to .env               ║
+║                                                                           ║
+║  ERROR: "Invalid or expired token"                                        ║
+║  FIX: Check you're using service_role key, not anon key                  ║
+║                                                                           ║
+║  ERROR: "User profile not found"                                          ║
+║  FIX: Run database migrations from supabase/sql/ directory               ║
+║                                                                           ║
+║  ERROR: "Admin access required"                                           ║
+║  FIX: UPDATE profiles SET role = 'admin' WHERE email = 'your@email.com'  ║
+║                                                                           ║
+║  ERROR: Variables look correct but still failing                          ║
+║  FIX: 1. Check .env is in server/ directory                              ║
+║       2. Completely stop and restart server                               ║
+║       3. Check for spaces around = sign                                   ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                      WHAT EACH LOG MESSAGE MEANS                          ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  ✅ "Supabase Admin is configured"                                        ║
+║     → Environment variables loaded successfully                           ║
+║                                                                           ║
+║  ❌ "Supabase admin client is NULL!"                                      ║
+║     → SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing                  ║
+║                                                                           ║
+║  ✅ "JWT verified, user: user@example.com"                                ║
+║     → User authentication successful                                      ║
+║                                                                           ║
+║  ❌ "JWT verification failed"                                             ║
+║     → Token is invalid, expired, or wrong key used                        ║
+║                                                                           ║
+║  ✅ "Profile found, role: admin"                                          ║
+║     → User profile exists and role checked                                ║
+║                                                                           ║
+║  ❌ "Profile fetch failed"                                                ║
+║     → Profile doesn't exist or database connection issue                  ║
+║                                                                           ║
+║  ❌ "User is not admin"                                                   ║
+║     → User has role 'user' but 'admin' required                          ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                           QUICK COMMANDS                                  ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  Diagnose configuration:                                                  ║
+║    $ npm run debug:supabase                                               ║
+║                                                                           ║
+║  Run with debug logging:                                                  ║
+║    $ npm run dev:debug                                                    ║
+║                                                                           ║
+║  Check .env exists:                                                       ║
+║    $ ls -la server/.env                                                   ║
+║                                                                           ║
+║  Test database connection:                                                ║
+║    $ curl http://localhost:5000/api/auth/db-ping                          ║
+║                                                                           ║
+║  View .env without secrets:                                               ║
+║    $ cat server/.env | sed 's/=.*/=***/'                                  ║
+║                                                                           ║
+║  Update user to admin:                                                    ║
+║    $ psql $DATABASE_URL                                                   ║
+║    > UPDATE profiles SET role = 'admin'                                   ║
+║      WHERE email = 'your@email.com';                                      ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+

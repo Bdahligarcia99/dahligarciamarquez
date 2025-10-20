@@ -1,6 +1,7 @@
 // client/src/features/admin/AdminProvider.jsx
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { apiAdminGet, AdminApiError } from "../../lib/api";
+import { getAdminToken } from "../../lib/adminAuth";
 
 const AdminContext = createContext({ 
   isAdmin: false, 
@@ -17,6 +18,15 @@ export function AdminProvider({ children }) {
   const check = useCallback(async () => {
     setLoading(true);
     setError(null);
+    
+    // Only check admin health if we have an admin token
+    const adminToken = getAdminToken();
+    if (!adminToken) {
+      setIsAdmin(false);
+      setLoading(false);
+      return;
+    }
+    
     try {
       const res = await apiAdminGet("/api/admin/health");
       setIsAdmin(!!res?.ok);

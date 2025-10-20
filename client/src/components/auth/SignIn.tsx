@@ -1,27 +1,104 @@
 // Sign In Component
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import AuthLoadingOverlay from '../AuthLoadingOverlay'
 
 export default function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showAuthLoading, setShowAuthLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { signIn } = useAuth()
+  const [isSigningIn, setIsSigningIn] = useState(false)
+  const { signIn, user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // Watch for authentication state changes
+  useEffect(() => {
+    console.log('🔍 SignIn useEffect - user:', !!user, 'authLoading:', authLoading, 'showAuthLoading:', showAuthLoading, 'isSigningIn:', isSigningIn)
+    
+    if (user && !authLoading) {
+      if (isSigningIn) {
+        // User just became authenticated during sign-in process
+        console.log('🚀 User authenticated during sign-in, showing loading overlay...')
+        setIsSigningIn(false)
+        setShowAuthLoading(true)
+        
+        // Use a separate effect for the timer to avoid cleanup issues
+        return
+      } else if (!showAuthLoading) {
+        // User was already authenticated when component loaded AND we're not showing loading overlay
+        console.log('🔄 User already authenticated, redirecting immediately...')
+        const from = location.state?.from?.pathname || '/'
+        navigate(from, { replace: true })
+      }
+    }
+  }, [user, authLoading, showAuthLoading, isSigningIn, navigate, location])
+
+  // Separate effect for handling the loading overlay timer
+  useEffect(() => {
+    if (showAuthLoading && user && !authLoading) {
+      console.log('⏰ Starting redirect timer...')
+      const timer = setTimeout(() => {
+        console.log('⏰ Timer complete, redirecting...')
+        setShowAuthLoading(false)
+        const from = location.state?.from?.pathname || '/'
+        navigate(from, { replace: true })
+      }, 1500)
+      
+      // Fallback timer in case something goes wrong
+      const fallbackTimer = setTimeout(() => {
+        console.log('🚨 Fallback timer triggered - forcing redirect')
+        setShowAuthLoading(false)
+        const from = location.state?.from?.pathname || '/'
+        navigate(from, { replace: true })
+      }, 3000)
+      
+      return () => {
+        console.log('🧹 Cleaning up timers')
+        clearTimeout(timer)
+        clearTimeout(fallbackTimer)
+      }
+    }
+  }, [showAuthLoading, user, authLoading, navigate, location])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setIsSigningIn(true)
 
-    const { error } = await signIn(email, password)
+    console.log('🔐 Starting sign-in process...')
+    try {
+      const result = await signIn(email, password)
+      console.log('🔍 Sign-in result:', result)
 
-    if (error) {
-      setError(error.message)
+      if (result.error) {
+        console.log('❌ Sign-in error:', result.error.message)
+        setError(result.error.message)
+        setLoading(false)
+        setIsSigningIn(false)
+      } else {
+        // Don't show loading overlay immediately - wait for auth state change
+        console.log('✅ Sign-in request successful, waiting for auth state change...')
+        setLoading(false)
+        // isSigningIn stays true until useEffect detects user authentication
+      }
+    } catch (err) {
+      console.log('❌ Sign-in exception:', err)
+      setError('An unexpected error occurred')
+      setLoading(false)
+      setIsSigningIn(false)
     }
+  }
 
-    setLoading(false)
+  const handleAuthComplete = () => {
+    console.log('🎯 Manual auth complete triggered')
+    setShowAuthLoading(false)
+    const from = location.state?.from?.pathname || '/'
+    navigate(from, { replace: true })
   }
 
   return (
@@ -101,6 +178,14 @@ export default function SignIn() {
           </div>
         </form>
       </div>
+      
+      {/* Loading overlay for successful sign in */}
+        <AuthLoadingOverlay
+          isVisible={showAuthLoading}
+          message="Signing you in..."
+          onComplete={handleAuthComplete}
+          autoComplete={false}
+        />
     </div>
   )
 }

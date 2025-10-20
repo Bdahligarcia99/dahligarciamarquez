@@ -47,9 +47,10 @@ export async function initDb() {
     `)
     
     // Add author_id column if it doesn't exist (for compatibility with Supabase schema)
+    // Note: No default value - author_id should be explicitly provided
     await q(`
       ALTER TABLE posts 
-      ADD COLUMN IF NOT EXISTS author_id TEXT DEFAULT '14aefc2f-74df-4611-accf-8e36f1edbae7'
+      ADD COLUMN IF NOT EXISTS author_id TEXT
     `)
     
     // Add content_html column if it doesn't exist (for rich text support)

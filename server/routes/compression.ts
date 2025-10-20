@@ -1,6 +1,6 @@
 // Compression API routes
 import { Router } from 'express'
-import { requireAdmin } from '../src/middleware/requireAdmin.ts'
+import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
 import { CompressionService, CompressionOptions } from '../src/services/compressionService.ts'
 import { storage } from '../src/storage/index.js'
 import { query } from '../src/db.ts'
@@ -10,7 +10,7 @@ const router = Router()
 /**
  * GET /api/compression/settings - Get compression settings
  */
-router.get('/settings', requireAdmin, async (req, res) => {
+router.get('/settings', requireSupabaseAdmin, async (req, res) => {
   try {
     const result = await query(`
       SELECT 
@@ -56,7 +56,7 @@ router.get('/settings', requireAdmin, async (req, res) => {
 /**
  * PATCH /api/compression/settings - Update compression settings
  */
-router.patch('/settings', requireAdmin, async (req, res) => {
+router.patch('/settings', requireSupabaseAdmin, async (req, res) => {
   try {
     const {
       compression_enabled,
@@ -198,7 +198,7 @@ router.patch('/settings', requireAdmin, async (req, res) => {
 /**
  * POST /api/compression/compress-url - Download and compress image from URL
  */
-router.post('/compress-url', requireAdmin, async (req, res) => {
+router.post('/compress-url', requireSupabaseAdmin, async (req, res) => {
   try {
     const { url, quality, format } = req.body
     
@@ -301,7 +301,7 @@ router.post('/compress-url', requireAdmin, async (req, res) => {
 /**
  * GET /api/compression/stats - Get compression statistics
  */
-router.get('/stats', requireAdmin, async (req, res) => {
+router.get('/stats', requireSupabaseAdmin, async (req, res) => {
   try {
     const result = await query(`
       SELECT 

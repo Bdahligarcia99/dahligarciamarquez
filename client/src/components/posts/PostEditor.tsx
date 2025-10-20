@@ -1,7 +1,8 @@
 // Post Editor Component
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { apiAdminGet, apiAdminPost, apiAdminPatch } from '../../lib/api'
+import { supabaseAdminGet, supabaseAdminPost, supabaseAdminPatch } from '../../lib/api'
+import { useAuth } from '../../hooks/useAuth'
 import RichTextEditor, { RichTextEditorRef } from '../editor/RichTextEditor'
 import { uploadImage, UploadError } from '../../utils/uploadImage'
 import { validateImageUrl, extractImageUrlsFromHtml } from '../../utils/imageValidation'
@@ -29,6 +30,7 @@ interface PostEditorProps {
 export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const { id: routePostId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const postId = routePostId
   const editorRef = useRef<RichTextEditorRef>(null)
   const [title, setTitle] = useState('')
@@ -102,7 +104,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
 
   const fetchLabels = async () => {
     try {
-      const labels = await apiAdminGet('/api/labels')
+      const labels = await supabaseAdminGet('/api/labels')
       setAvailableLabels(labels)
     } catch (error) {
       console.error('Error fetching labels:', error)
@@ -114,7 +116,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
 
     setLoading(true)
     try {
-      const post = await apiAdminGet(`/api/posts/${postId}`)
+      const post = await supabaseAdminGet(`/api/posts/${postId}`)
       
       // Safe destructuring with defaults
       const {
@@ -160,7 +162,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         if (error.message.includes('404') || error.message.includes('not found')) {
           setError('Post not found. It may have been deleted or you may not have permission to view it.')
         } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-          setError('You are not authorized to edit this post. Please check your admin token.')
+          setError('You are not authorized to edit this post. Please sign in with admin privileges.')
         } else {
           setError(`Failed to load post: ${error.message}`)
         }
@@ -176,6 +178,12 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     e.preventDefault()
     if (!title?.trim()) {
       setError('Title is required')
+      return
+    }
+
+    // Ensure user is authenticated
+    if (!user?.id) {
+      setError('You must be signed in to create or edit posts')
       return
     }
 
@@ -236,20 +244,21 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         cover_image_url: (coverCompressionResult?.url || coverImageUrl)?.trim() || null,
         cover_image_alt: coverImageAlt?.trim() || null,
         status,
-        label_ids: selectedLabels
+        label_ids: selectedLabels,
+        author_id: user?.id // Include current user ID as author
       }
 
       let savedPost
       if (postId) {
         // Edit existing post
-        savedPost = await apiAdminPatch(`/api/posts/${postId}`, postData)
+        savedPost = await supabaseAdminPatch(`/api/posts/${postId}`, postData)
         setError(null)
         // Show success message briefly
         setSuccessMessage('Post saved successfully!')
         setTimeout(() => setSuccessMessage(null), 3000)
       } else {
         // Create new post
-        savedPost = await apiAdminPost('/api/posts', postData)
+        savedPost = await supabaseAdminPost('/api/posts', postData)
         // Navigate back to posts list after creation
         navigate('/dashboard/posts')
       }

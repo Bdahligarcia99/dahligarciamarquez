@@ -111,6 +111,39 @@ npm run server
 npm run build
 ```
 
+## 🐛 Troubleshooting
+
+### Supabase Configuration Issues
+
+If you're getting "Supabase admin not configured" errors:
+
+1. **Quick Diagnosis (30 seconds):**
+   ```bash
+   cd server
+   npm run debug:supabase
+   ```
+   This will show you exactly what's missing.
+
+2. **Quick Fix:**
+   - See [DEBUG_QUICK_START.md](./DEBUG_QUICK_START.md) for a 5-minute guide
+   - Or check [DEBUGGING_SUPABASE.md](./DEBUGGING_SUPABASE.md) for comprehensive troubleshooting
+
+3. **Enable Debug Logging:**
+   Add to `server/.env`:
+   ```bash
+   DEBUG_SUPABASE=true
+   ```
+   Then run: `npm run dev:debug`
+
+### Common Issues
+
+- **"Variables not loading"** → Check `.env` is in `server/` directory, not root
+- **"Invalid token"** → Make sure you're using the service_role key, not anon key
+- **"Profile not found"** → Run database migrations in `supabase/sql/` directory
+- **"Not admin"** → Update user role: `UPDATE profiles SET role = 'admin' WHERE email = 'your@email.com'`
+
+For more help, see [DEBUGGING_TOOLS_SUMMARY.md](./DEBUGGING_TOOLS_SUMMARY.md)
+
 ## 📡 API Endpoints
 
 - `GET /api/posts` - Get all posts

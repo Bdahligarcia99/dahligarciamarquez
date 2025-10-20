@@ -1,7 +1,7 @@
 // Admin-only routes for system management
 import { Router } from 'express'
 import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
-import { requireAdmin } from '../src/middleware/requireAdmin.ts'
+import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
 import { getComingSoon, setComingSoon } from '../src/state/runtimeConfig.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -22,7 +22,7 @@ try {
 }
 
 // GET /api/admin/coming-soon - Get Coming Soon mode status
-router.get('/coming-soon', requireAdmin, (req, res) => {
+router.get('/coming-soon', requireSupabaseAdmin, (req, res) => {
   try {
     res.json({
       enabled: getComingSoon()
@@ -34,7 +34,7 @@ router.get('/coming-soon', requireAdmin, (req, res) => {
 })
 
 // PUT /api/admin/coming-soon - Set Coming Soon mode
-router.put('/coming-soon', requireAdmin, (req, res) => {
+router.put('/coming-soon', requireSupabaseAdmin, (req, res) => {
   try {
     const { enabled } = req.body
     
@@ -54,7 +54,7 @@ router.put('/coming-soon', requireAdmin, (req, res) => {
 })
 
 // GET /api/admin/health - Admin health check endpoint
-router.get('/health', requireAdmin, (req, res) => {
+router.get('/health', requireSupabaseAdmin, (req, res) => {
   res.json({
     ok: true,
     version: packageVersion,

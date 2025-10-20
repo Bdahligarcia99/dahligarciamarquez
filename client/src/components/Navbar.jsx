@@ -1,15 +1,28 @@
 // client/src/components/Navbar.jsx
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { useAdmin } from "../features/admin/AdminProvider";
+import { useAuth } from "../hooks/useAuth";
 import { SITE_NAME } from "../config/branding";
+import ProfileDropdown from "./ProfileDropdown";
 import "../styles/nav.css";
 
-export default function Navbar({ onRequestAdminModal }) {
+export default function Navbar() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
-  const timerRef = useRef(null);
-  const { isAdmin } = useAdmin();
+  
+  // Get Supabase auth state if available
+  let user = null;
+  let profile = null;
+  let isAdmin = false;
+  
+  try {
+    const auth = useAuth();
+    user = auth.user;
+    profile = auth.profile;
+    isAdmin = profile?.role === 'admin';
+  } catch {
+    // useAuth not available (Supabase not configured)
+  }
 
   useEffect(() => {
     function onDocClick(e) {
@@ -29,26 +42,10 @@ export default function Navbar({ onRequestAdminModal }) {
 
   const onNav = () => setOpen(false);
 
-  // Long-press handlers for admin modal
-  function onDown() {
-    timerRef.current = window.setTimeout(() => onRequestAdminModal?.(), 1500);
-  }
-  function onUp() {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = null;
-  }
-
   return (
     <header className="nav-root" ref={menuRef}>
       <div className="nav-bar container">
-        <Link 
-          to="/" 
-          className="brand"
-          onPointerDown={onDown}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          onPointerLeave={onUp}
-        >
+        <Link to="/" className="brand">
           {SITE_NAME}
         </Link>
 
@@ -58,6 +55,9 @@ export default function Navbar({ onRequestAdminModal }) {
           <NavLink to="/blog" className="link">Blog</NavLink>
           {isAdmin && <NavLink to="/dashboard" className="link">Dashboard</NavLink>}
         </nav>
+
+        {/* Profile Dropdown */}
+        <ProfileDropdown />
 
         <button
           className="hamburger"
@@ -80,6 +80,13 @@ export default function Navbar({ onRequestAdminModal }) {
         <NavLink to="/stories" className="panel-link" onClick={onNav}>Stories</NavLink>
         <NavLink to="/blog" className="panel-link" onClick={onNav}>Blog</NavLink>
         {isAdmin && <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>}
+        {user ? (
+          <span className="panel-link" style={{ cursor: 'default', color: '#6b7280' }}>
+            Signed in as {user.email?.split('@')[0]}
+          </span>
+        ) : (
+          <NavLink to="/auth/signin" className="panel-link" onClick={onNav}>Sign In</NavLink>
+        )}
       </nav>
     </header>
   );

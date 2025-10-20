@@ -1,7 +1,7 @@
 // Labels API routes
 import { Router } from 'express'
 import { getSupabaseAdmin } from '../auth/supabaseAdmin.js'
-import { requireAdmin } from '../middleware/requireAdmin.ts'
+import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
 import { AuthenticatedRequest } from '../middleware/requireUser.js'
 
 const router = Router()
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
 })
 
 // POST /api/labels - Admin only: create new label
-router.post('/', requireAdmin, async (req: AuthenticatedRequest, res) => {
+router.post('/', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { name } = req.body
     
@@ -60,7 +60,7 @@ router.post('/', requireAdmin, async (req: AuthenticatedRequest, res) => {
 })
 
 // PUT /api/labels/:id - Admin only: update label
-router.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res) => {
+router.put('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params
     const { name } = req.body
@@ -100,7 +100,7 @@ router.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res) => {
 })
 
 // DELETE /api/labels/:id - Admin only: delete label
-router.delete('/:id', requireAdmin, async (req: AuthenticatedRequest, res) => {
+router.delete('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params
     

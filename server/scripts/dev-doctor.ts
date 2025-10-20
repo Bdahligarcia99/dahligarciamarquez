@@ -22,7 +22,7 @@ interface CheckResult {
 // Compute base URL and token
 const port = Number(process.env.PORT || 8080);
 const BASE_URL = `http://localhost:${port}`;
-const adminToken = (process.env.SERVER_ADMIN_TOKEN || '').trim();
+// Removed SERVER_ADMIN_TOKEN - using Supabase JWT auth now
 
 // Colors for console output
 const colors = {
@@ -132,42 +132,41 @@ async function checkCORSPreflight(): Promise<CheckResult> {
   }
 }
 
-async function checkAdminHealth(): Promise<CheckResult> {
-  // If no admin token, record SKIP and do not count as failure
-  if (!adminToken) {
+async function checkSupabaseAdminHealth(): Promise<CheckResult> {
+  // Check if Supabase admin is configured
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
     return {
-      name: 'Admin Health',
-      status: 'skip',
-      details: 'SERVER_ADMIN_TOKEN not set',
-      required: false
+      name: 'Supabase Admin',
+      status: 'fail',
+      details: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured',
+      required: true
     };
   }
 
   try {
-    const response = await fetchWithTimeout(`${BASE_URL}/api/admin/health`, {
-      headers: {
-        'Authorization': `Bearer ${adminToken}`
-      }
-    });
+    const response = await fetchWithTimeout(`${BASE_URL}/api/admin/health`);
     
     if (response.status === 200) {
       const data = await response.json();
       return {
-        name: 'Admin Health',
+        name: 'Supabase Admin',
         status: 'pass',
-        details: `Admin API responding: ${data.status || 'OK'}`,
+        details: `Supabase admin configured: ${data.status || 'OK'}`,
         required: true
       };
     } else if (response.status === 401) {
       return {
-        name: 'Admin Health',
+        name: 'Supabase Admin',
         status: 'fail',
-        details: 'Invalid admin token',
+        details: 'Admin endpoint requires authentication',
         required: true
       };
     } else {
       return {
-        name: 'Admin Health',
+        name: 'Supabase Admin',
         status: 'fail',
         details: `Expected 200, got ${response.status}`,
         required: true
@@ -175,7 +174,7 @@ async function checkAdminHealth(): Promise<CheckResult> {
     }
   } catch (error: any) {
     return {
-      name: 'Admin Health',
+      name: 'Supabase Admin',
       status: 'fail',
       details: `Request failed: ${error.message}`,
       required: true
@@ -362,8 +361,8 @@ function getFixHint(result: CheckResult): string {
       return 'Ensure server is running on the correct port';
     case 'CORS Preflight':
       return 'Check CORS configuration in server.js';
-    case 'Admin Health':
-      return 'Set SERVER_ADMIN_TOKEN (optional in dev; currently skipped)';
+    case 'Supabase Admin':
+      return 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables';
     case 'Database Health':
       return 'Check database connection and /api/db/health endpoint';
     case 'Storage Health':
@@ -395,14 +394,14 @@ async function main(): Promise<void> {
 
   console.log(colorize('🔍 Running development diagnostics...', 'bold'));
   console.log(`📍 Target: ${BASE_URL}`);
-  console.log(`🔑 Admin token: ${adminToken ? 'Set' : 'Not set'}`);
+  console.log(`🔑 Supabase: ${process.env.SUPABASE_URL ? 'Configured' : 'Not configured'}`);
   
   try {
     // Run all checks in parallel
     const checks = await Promise.all([
       checkHealthz(),
       checkCORSPreflight(),
-      checkAdminHealth(),
+      checkSupabaseAdminHealth(),
       checkPostsAuth(),
       checkStorageHealth(),
       checkDbHealth()

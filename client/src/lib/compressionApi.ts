@@ -1,5 +1,5 @@
 // Compression API client functions
-import { apiAdminGet, apiAdminPatch, apiAdminPost } from './api'
+import { supabaseAdminGet, supabaseAdminPatch, supabaseAdminPost } from './api'
 
 export interface CompressionSettings {
   compression_enabled: boolean
@@ -39,14 +39,14 @@ export interface CompressionStats {
  * Get current compression settings
  */
 export async function getCompressionSettings(): Promise<CompressionSettings> {
-  return await apiAdminGet('/api/compression/settings')
+  return await supabaseAdminGet('/api/compression/settings')
 }
 
 /**
  * Update compression settings
  */
 export async function updateCompressionSettings(settings: Partial<CompressionSettings>): Promise<{ success: boolean; message: string }> {
-  return await apiAdminPatch('/api/compression/settings', settings)
+  return await supabaseAdminPatch('/api/compression/settings', settings)
 }
 
 /**
@@ -59,7 +59,7 @@ export async function compressImageFromUrl(
     format?: 'auto' | 'webp' | 'jpeg' | 'png'
   }
 ): Promise<CompressionResult> {
-  return await apiAdminPost('/api/compression/compress-url', {
+  return await supabaseAdminPost('/api/compression/compress-url', {
     url,
     ...options
   })
@@ -69,7 +69,7 @@ export async function compressImageFromUrl(
  * Get compression statistics
  */
 export async function getCompressionStats(): Promise<CompressionStats> {
-  return await apiAdminGet('/api/compression/stats')
+  return await supabaseAdminGet('/api/compression/stats')
 }
 
 /**

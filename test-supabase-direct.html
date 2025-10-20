@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Supabase Connection</title>
+</head>
+<body>
+    <h1>Supabase Connection Test</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="testSignup()">Test Signup</button>
+    <div id="results"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const supabaseUrl = 'https://evlifkevmsstofbyvgjh.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2bGlma2V2bXNzdG9mYnl2Z2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY1NTksImV4cCI6MjA3MjEwMjU1OX0.MvCcwzM76yAK_kNYG4scmSz1cKdfsZpjD5GV9DLkWk0'
+        
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey)
+
+        function log(message) {
+            document.getElementById('results').innerHTML += '<p>' + message + '</p>'
+            console.log(message)
+        }
+
+        async function testConnection() {
+            log('🧪 Testing Supabase connection...')
+            
+            try {
+                const response = await fetch(supabaseUrl + '/rest/v1/')
+                if (response.ok) {
+                    log('✅ Connection successful!')
+                } else {
+                    log('❌ Connection failed: ' + response.status)
+                }
+            } catch (error) {
+                log('❌ Connection error: ' + error.message)
+            }
+        }
+
+        async function testSignup() {
+            log('🧪 Testing signup...')
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: 'test' + Date.now() + '@example.com',
+                    password: 'testpassword123'
+                })
+                
+                if (error) {
+                    log('❌ Signup error: ' + error.message)
+                } else {
+                    log('✅ Signup successful! Check your email.')
+                    log('User ID: ' + data.user?.id)
+                }
+            } catch (error) {
+                log('❌ Signup failed: ' + error.message)
+            }
+        }
+    </script>
+</body>
+</html>

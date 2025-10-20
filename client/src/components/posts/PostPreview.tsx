@@ -1,7 +1,7 @@
 // Post Preview Component - Shows posts as readers would see them
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { apiAdminGet } from '../../lib/api'
+import { supabaseAdminGet } from '../../lib/api'
 import LoadingSpinner from '../LoadingSpinner'
 import { formatDate } from '../../utils/formatDate'
 import { setDocumentTitle, setMetaDescription } from '../../utils/metadata'
@@ -37,7 +37,7 @@ export default function PostPreview() {
 
       try {
         setLoading(true)
-        const data = await apiAdminGet(`/api/posts/${id}`)
+        const data = await supabaseAdminGet(`/api/posts/${id}`)
         setPost(data)
         setError(null)
         

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Auth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Admin Authentication Test</h1>
+    
+    <div class="section info">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Make sure your dev servers are running (<code>npm run dev</code> in both client/ and server/)</li>
+            <li>Sign in with your credentials</li>
+            <li>Check if you're recognized as admin</li>
+            <li>Test admin API access</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h3>1. Sign In</h3>
+        <input type="email" id="email" placeholder="Email" value="dagama02@gmail.com">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="signIn()">Sign In</button>
+        <button onclick="signOut()">Sign Out</button>
+        <div id="authStatus"></div>
+    </div>
+
+    <div class="section">
+        <h3>2. Check Profile & Role</h3>
+        <button onclick="checkProfile()">Check My Profile</button>
+        <div id="profileStatus"></div>
+    </div>
+
+    <div class="section">
+        <h3>3. Test Admin API Access</h3>
+        <button onclick="testAdminAPI()">Test Admin Endpoints</button>
+        <div id="adminStatus"></div>
+    </div>
+
+    <script type="module">
+        // Import Supabase
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+        
+        // Your actual Supabase credentials
+        const SUPABASE_URL = 'https://evlifkevmsstofbyvgjh.supabase.co'
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2bGlma2V2bXNzdG9mYnl2Z2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY1NTksImV4cCI6MjA3MjEwMjU1OX0.MvCcwzM76yAK_kNYG4scmSz1cKdfsZpjD5GV9DLkWk0'
+        
+        // Create Supabase client
+        let supabase = null
+        let currentUser = null
+        let currentSession = null
+        
+        // Initialize Supabase
+        try {
+            supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+            console.log('✅ Supabase client initialized')
+        } catch (error) {
+            console.error('❌ Failed to initialize Supabase:', error)
+            document.getElementById('authStatus').innerHTML = 
+                '<div class="error">❌ Failed to initialize Supabase: ' + error.message + '</div>'
+        }
+
+        window.signIn = async function() {
+            if (!supabase) {
+                alert('Supabase not configured')
+                return
+            }
+            
+            const email = document.getElementById('email').value
+            const password = document.getElementById('password').value
+            
+            if (!email || !password) {
+                alert('Please enter email and password')
+                return
+            }
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                })
+                
+                if (error) {
+                    document.getElementById('authStatus').innerHTML = 
+                        '<div class="error">❌ Sign in failed: ' + error.message + '</div>'
+                    return
+                }
+                
+                currentUser = data.user
+                currentSession = data.session
+                
+                document.getElementById('authStatus').innerHTML = 
+                    '<div class="success">✅ Signed in as: ' + currentUser.email + '</div>'
+                    
+            } catch (error) {
+                document.getElementById('authStatus').innerHTML = 
+                    '<div class="error">❌ Sign in error: ' + error.message + '</div>'
+            }
+        }
+
+        window.signOut = async function() {
+            if (!supabase) return
+            
+            try {
+                await supabase.auth.signOut()
+                currentUser = null
+                currentSession = null
+                
+                document.getElementById('authStatus').innerHTML = 
+                    '<div class="info">ℹ️ Signed out</div>'
+                document.getElementById('profileStatus').innerHTML = ''
+                document.getElementById('adminStatus').innerHTML = ''
+                    
+            } catch (error) {
+                document.getElementById('authStatus').innerHTML = 
+                    '<div class="error">❌ Sign out error: ' + error.message + '</div>'
+            }
+        }
+
+        window.checkProfile = async function() {
+            if (!supabase || !currentUser) {
+                document.getElementById('profileStatus').innerHTML = 
+                    '<div class="error">❌ Please sign in first</div>'
+                return
+            }
+            
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', currentUser.id)
+                    .single()
+                
+                if (error) {
+                    document.getElementById('profileStatus').innerHTML = 
+                        '<div class="error">❌ Profile fetch failed: ' + error.message + '</div>'
+                    return
+                }
+                
+                const isAdmin = data.role === 'admin'
+                const statusClass = isAdmin ? 'success' : 'info'
+                const roleIcon = isAdmin ? '👑' : '👤'
+                
+                document.getElementById('profileStatus').innerHTML = 
+                    '<div class="' + statusClass + '">' + roleIcon + ' Role: <strong>' + data.role + '</strong></div>' +
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>'
+                    
+            } catch (error) {
+                document.getElementById('profileStatus').innerHTML = 
+                    '<div class="error">❌ Profile check error: ' + error.message + '</div>'
+            }
+        }
+
+        window.testAdminAPI = async function() {
+            if (!currentSession) {
+                document.getElementById('adminStatus').innerHTML = 
+                    '<div class="error">❌ Please sign in first</div>'
+                return
+            }
+            
+            const token = currentSession.access_token
+            const baseURL = 'http://localhost:3001' // Adjust if your server runs on different port
+            
+            // Test admin endpoints
+            const tests = [
+                { name: 'GET /api/admin/posts', url: '/api/admin/posts' },
+                { name: 'GET /api/admin/labels', url: '/api/admin/labels' },
+                { name: 'GET /api/admin/images', url: '/api/admin/images' }
+            ]
+            
+            let results = '<h4>Admin API Test Results:</h4>'
+            
+            for (const test of tests) {
+                try {
+                    const response = await fetch(baseURL + test.url, {
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    
+                    const statusClass = response.ok ? 'success' : 'error'
+                    const statusIcon = response.ok ? '✅' : '❌'
+                    
+                    results += '<div class="' + statusClass + '">' + 
+                        statusIcon + ' ' + test.name + ': ' + response.status + ' ' + response.statusText + '</div>'
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text()
+                        results += '<pre>' + errorText + '</pre>'
+                    }
+                    
+                } catch (error) {
+                    results += '<div class="error">❌ ' + test.name + ': ' + error.message + '</div>'
+                }
+            }
+            
+            document.getElementById('adminStatus').innerHTML = results
+        }
+
+        // Check initial auth state
+        if (supabase) {
+            supabase.auth.onAuthStateChange((event, session) => {
+                if (session) {
+                    currentUser = session.user
+                    currentSession = session
+                    document.getElementById('authStatus').innerHTML = 
+                        '<div class="success">✅ Already signed in as: ' + currentUser.email + '</div>'
+                }
+            })
+        }
+    </script>
+</body>
+</html>

@@ -2,7 +2,7 @@ import { config } from './src/config.ts'
 import express from 'express'
 import cors from 'cors'
 import { initDb, q, closeDb } from './db.js'
-import { requireAdmin } from './src/middleware/requireAdmin.ts'
+import { requireSupabaseAdmin } from './src/middleware/requireSupabaseAdmin.ts'
 import { query } from './src/db.ts'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -13,6 +13,7 @@ import adminRoutes from './routes/admin.ts'
 import imagesRoutes from './routes/images.ts'
 import storageRoutes from './routes/storage.ts'
 import compressionRoutes from './routes/compression.ts'
+import userManagementRoutes from './routes/user-management.ts'
 
 // Import storage info for boot logging
 import { storageInfo } from './src/storage/index.ts'
@@ -145,6 +146,7 @@ app.get('/api/db/now', async (req, res, next) => {
 app.use('/api/storage', storageRoutes)
 app.use('/api/images', imagesRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/admin', userManagementRoutes)
 app.use('/api/compression', compressionRoutes)
 console.log('Mounted storage: /api/storage/health')
 console.log('Mounted images: /api/images/uploads/image')
@@ -263,7 +265,7 @@ if (config.server.nodeEnv === 'development') {
 }
 
 // Get all posts with filtering and pagination (admin only)
-app.get('/api/posts', requireAdmin, async (req, res, next) => {
+app.get('/api/posts', requireSupabaseAdmin, async (req, res, next) => {
   try {
     const { q: searchQuery = '', status, page = '1', limit = '20' } = req.query
     const p = Math.max(1, parseInt(page))
@@ -302,7 +304,7 @@ app.get('/api/posts', requireAdmin, async (req, res, next) => {
 })
 
 // Get single post by ID (admin only)
-app.get('/api/posts/:id', requireAdmin, async (req, res, next) => {
+app.get('/api/posts/:id', requireSupabaseAdmin, async (req, res, next) => {
   try {
     const { id } = req.params
     const result = await q('SELECT id, title, content_text, content_rich, content_html, excerpt, cover_image_url, status, created_at, updated_at FROM posts WHERE id = $1', [id])
@@ -320,16 +322,20 @@ app.get('/api/posts/:id', requireAdmin, async (req, res, next) => {
 })
 
 // Create new post (admin only)
-app.post('/api/posts', requireAdmin, async (req, res, next) => {
+app.post('/api/posts', requireSupabaseAdmin, async (req, res, next) => {
   try {
     const { title, content_text, content_rich, content_html, excerpt, cover_image_url, status = 'published', author_id } = req.body
     
     // Use content_text for post content, but also accept rich content
     const contentText = content_text
     
-    // TODO: Temporary fix - use default test author if author_id is missing
-    // This should be removed once client-side author_id support is added
-    const authorId = author_id || '14aefc2f-74df-4611-accf-8e36f1edbae7' // Supabase test user UUID
+    // Use provided author_id or throw error - no more hardcoded defaults
+    if (!author_id) {
+      const err = new Error('Author ID is required')
+      err.status = 400
+      return next(err)
+    }
+    const authorId = author_id
     
     // Validation
     if (!title || !contentText) {
@@ -362,7 +368,7 @@ app.post('/api/posts', requireAdmin, async (req, res, next) => {
 })
 
 // Update post (partial) (admin only)
-app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
+app.patch('/api/posts/:id', requireSupabaseAdmin, async (req, res, next) => {
   try {
     const { title, content_text, content_rich, content_html, excerpt, cover_image_url, status } = req.body || {}
     const updates = []
@@ -431,7 +437,7 @@ app.patch('/api/posts/:id', requireAdmin, async (req, res, next) => {
 })
 
 // Delete post (admin only)
-app.delete('/api/posts/:id', requireAdmin, async (req, res, next) => {
+app.delete('/api/posts/:id', requireSupabaseAdmin, async (req, res, next) => {
   try {
     const { rowCount } = await q('DELETE FROM posts WHERE id = $1', [req.params.id])
     

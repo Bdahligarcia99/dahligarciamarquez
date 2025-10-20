@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Force environment variable reload
+  envDir: './',
   server: {
     port: 5173,
     proxy: {

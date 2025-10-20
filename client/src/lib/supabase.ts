@@ -1,28 +1,50 @@
 // Supabase client configuration
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Force correct values since env loading has wrong placeholder values
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co' 
+  ? 'https://evlifkevmsstofbyvgjh.supabase.co' 
+  : import.meta.env.VITE_SUPABASE_URL
+
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY?.length < 100)
+  ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2bGlma2V2bXNzdG9mYnl2Z2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY1NTksImV4cCI6MjA3MjEwMjU1OX0.MvCcwzM76yAK_kNYG4scmSz1cKdfsZpjD5GV9DLkWk0'
+  : import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Feature flag for Supabase availability
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+
+console.log('🔧 Supabase Config Debug:', {
+  urlFromEnv: import.meta.env.VITE_SUPABASE_URL,
+  urlUsed: supabaseUrl,
+  keyFromEnv: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET' : 'MISSING',
+  keyUsed: supabaseAnonKey ? 'SET' : 'MISSING',
+  isConfigured: isSupabaseConfigured
+})
 
 // Lazy client creation - only when configured
 let _supabaseClient: any = null
 
 export function getSupabaseClient() {
   if (!isSupabaseConfigured) {
+    console.log('❌ Supabase not configured')
     return null // Do not throw
   }
   
   if (!_supabaseClient) {
-    _supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    })
+    console.log('🔧 Creating new Supabase client...')
+    try {
+      _supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      })
+      console.log('✅ Supabase client created successfully')
+    } catch (error) {
+      console.error('❌ Failed to create Supabase client:', error)
+      return null
+    }
   }
   
   return _supabaseClient

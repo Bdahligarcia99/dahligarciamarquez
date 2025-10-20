@@ -1,12 +1,13 @@
 // client/src/features/dashboard/Dashboard.jsx
 import React, { useState, Suspense } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import ErrorBoundary from '../../components/ErrorBoundary'
 import StatusChip from '../../components/StatusChip'
 import Overview from './Overview'
 import PostsPage from './PostsPage'
 import SettingsPage from './SettingsPage'
 import ImageLibrary from './ImageLibrary'
+import { useAuth } from '../../hooks/useAuth'
 
 import { lazySafe } from '../../lib/lazySafe'
 
@@ -15,9 +16,22 @@ const PostEditor = lazySafe(() => import('../../components/posts/PostEditor'), '
 
 const Dashboard = () => {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
   
   const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path + '/')
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      navigate('/', { replace: true })
+    } catch (error) {
+      console.error('Sign out error:', error)
+      // Navigate anyway in case of error
+      navigate('/', { replace: true })
+    }
   }
 
   const navItems = [
@@ -109,6 +123,22 @@ const Dashboard = () => {
               <div className="flex justify-center lg:justify-start">
                 <StatusChip />
               </div>
+            </div>
+            
+            {/* Sign Out Button */}
+            <div className="mt-4 px-2 lg:px-4">
+              <button
+                onClick={handleSignOut}
+                title="Sign Out"
+                className="flex items-center w-full transition-colors text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg justify-center lg:justify-start px-3 py-2"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="ml-3 text-sm font-medium hidden lg:block">
+                  Sign Out
+                </span>
+              </button>
             </div>
           </div>
         </nav>

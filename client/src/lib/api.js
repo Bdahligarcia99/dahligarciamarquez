@@ -222,6 +222,7 @@ export async function apiDelete(path) {
 
 // Admin API helpers
 import { adminHeaders, clearAdminToken } from './adminAuth';
+import { getSupabaseClient } from './supabase';
 
 // Enhanced error class for admin API calls
 export class AdminApiError extends Error {
@@ -434,4 +435,143 @@ export async function api(path, init) {
   const res = await fetch(buildApiUrl(path), { ...init });
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   return res.json();
+}
+
+// Supabase JWT-based API helpers (replacing admin token system)
+async function getSupabaseAuthHeaders() {
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
+  const { data: { session }, error } = await client.auth.getSession();
+  if (error || !session?.access_token) {
+    throw new Error('Not authenticated');
+  }
+  
+  return {
+    'Authorization': `Bearer ${session.access_token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+// Supabase-based admin API functions
+export async function supabaseAdminGet(path, { signal } = {}) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  try {
+    const headers = await getSupabaseAuthHeaders();
+    const res = await fetch(buildApiUrl(path), {
+      method: 'GET',
+      headers,
+      signal
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`GET ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error.message.includes('Not authenticated')) {
+      throw new Error('Authentication required');
+    }
+    throw error;
+  }
+}
+
+// Supabase-based stats helpers
+export async function supabaseFetchPostsTotal({ signal } = {}) {
+  try {
+    const data = await supabaseAdminGet('/api/posts?page=1&limit=1', { signal });
+    return typeof data.total === 'number' ? data.total : 0;
+  } catch (error) {
+    console.warn('Failed to fetch posts total:', error);
+    return 0;
+  }
+}
+
+export async function supabaseFetchDbHealth({ signal } = {}) {
+  try {
+    const data = await supabaseAdminGet('/api/admin/health', { signal });
+    return { ok: !!data.ok };
+  } catch (error) {
+    console.warn('Failed to fetch DB health:', error);
+    return { ok: false };
+  }
+}
+
+export async function supabaseAdminPost(path, body) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  try {
+    const headers = await getSupabaseAuthHeaders();
+    const res = await fetch(buildApiUrl(path), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`POST ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error.message.includes('Not authenticated')) {
+      throw new Error('Authentication required');
+    }
+    throw error;
+  }
+}
+
+export async function supabaseAdminPatch(path, body) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  try {
+    const headers = await getSupabaseAuthHeaders();
+    const res = await fetch(buildApiUrl(path), {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body)
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`PATCH ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error.message.includes('Not authenticated')) {
+      throw new Error('Authentication required');
+    }
+    throw error;
+  }
+}
+
+export async function supabaseAdminDelete(path) {
+  if (API_MISCONFIGURED) throw getMisconfigError();
+  
+  try {
+    const headers = await getSupabaseAuthHeaders();
+    const res = await fetch(buildApiUrl(path), {
+      method: 'DELETE',
+      headers
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`DELETE ${path} failed with HTTP ${res.status}: ${text || res.statusText}`);
+    }
+    
+    return res.json();
+  } catch (error) {
+    if (error.message.includes('Not authenticated')) {
+      throw new Error('Authentication required');
+    }
+    throw error;
+  }
 }

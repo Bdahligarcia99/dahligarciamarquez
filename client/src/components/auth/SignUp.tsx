@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 export default function SignUp() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -17,6 +18,20 @@ export default function SignUp() {
     setLoading(true)
     setError(null)
     setMessage(null)
+
+    // Validate password confirmation
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      setLoading(false)
+      return
+    }
+
+    // Validate password strength
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long')
+      setLoading(false)
+      return
+    }
 
     const { error } = await signUp(email, password, displayName)
 
@@ -84,6 +99,38 @@ export default function SignUp() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+          </div>
+          <div>
+            <label htmlFor="confirmPassword" className="sr-only">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={6}
+              className={`relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm ${
+                confirmPassword && password && confirmPassword !== password
+                  ? 'border-red-300 bg-red-50'
+                  : confirmPassword && password && confirmPassword === password
+                  ? 'border-green-300 bg-green-50'
+                  : 'border-gray-300'
+              }`}
+              placeholder="Confirm password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            {confirmPassword && password && (
+              <div className="mt-1 text-xs">
+                {confirmPassword === password ? (
+                  <span className="text-green-600">✓ Passwords match</span>
+                ) : (
+                  <span className="text-red-600">✗ Passwords do not match</span>
+                )}
+              </div>
+            )}
           </div>
 
           {error && (

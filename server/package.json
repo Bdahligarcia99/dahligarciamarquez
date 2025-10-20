@@ -7,9 +7,12 @@
   "scripts": {
     "start": "node --env-file=.env --import tsx server.js",
     "dev": "node server.js",
+    "dev:debug": "DEBUG_SUPABASE=true node server.js",
     "db:seed": "node db/seed.js",
     "migrate": "tsx ./scripts/migrate.ts",
     "doctor": "node --env-file=.env --import tsx scripts/dev-doctor.ts",
+    "debug:supabase": "node debug-supabase-config.js",
+    "verify:supabase": "node verify-supabase-setup.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

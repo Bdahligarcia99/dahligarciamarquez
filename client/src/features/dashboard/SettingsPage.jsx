@@ -1,7 +1,7 @@
 // client/src/features/dashboard/SettingsPage.jsx
 import { useState, useEffect } from 'react'
 import { API_MISCONFIGURED, apiGet, api, getApiBase } from '../../lib/api'
-import { apiAdminGet, apiAdminPost } from '../../lib/api'
+import { supabaseAdminGet, supabaseAdminPost } from '../../lib/api'
 import StatusBadge from './components/StatusBadge'
 import CompressionSettings from './components/CompressionSettings'
 
@@ -60,7 +60,7 @@ const SettingsPage = () => {
   // Coming Soon functionality
   const fetchComingSoonStatus = async () => {
     try {
-      const data = await apiAdminGet('/api/admin/coming-soon')
+      const data = await supabaseAdminGet('/api/admin/coming-soon')
       setComingSoonEnabled(data.enabled)
     } catch (error) {
       console.error('Failed to fetch Coming Soon status:', error)
@@ -74,7 +74,7 @@ const SettingsPage = () => {
 
     try {
       const newStatus = !comingSoonEnabled
-      const data = await apiAdminPost('/api/admin/coming-soon', { enabled: newStatus })
+      const data = await supabaseAdminPost('/api/admin/coming-soon', { enabled: newStatus })
       setComingSoonEnabled(data.enabled)
       setComingSoonSuccess(`Coming Soon mode ${data.enabled ? 'enabled' : 'disabled'} successfully`)
       

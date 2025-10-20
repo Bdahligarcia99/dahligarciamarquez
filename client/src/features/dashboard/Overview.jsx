@@ -1,6 +1,6 @@
 // client/src/features/dashboard/Overview.jsx
 import React from 'react'
-import { fetchPostsTotal, fetchDbHealth, AdminApiError } from '../../lib/api'
+import { supabaseFetchPostsTotal, supabaseFetchDbHealth } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import KpiCard from './components/KpiCard'
 import StatusBadge from './components/StatusBadge'
@@ -21,17 +21,8 @@ export default function Overview() {
         setLoading(true)
         setError(null)
         const [total, db] = await Promise.all([
-          fetchPostsTotal({ signal: ac.signal }).catch((err) => {
-            // Handle AdminApiError 401 by redirecting to /admin
-            if (err instanceof AdminApiError && err.status === 401) {
-              navigate('/admin', { 
-                state: { message: 'Please sign in with your admin token.' }
-              })
-              return 0
-            }
-            return 0
-          }),
-          fetchDbHealth({ signal: ac.signal }).catch(() => ({ ok: false })),
+          supabaseFetchPostsTotal({ signal: ac.signal }),
+          supabaseFetchDbHealth({ signal: ac.signal }),
         ])
         
         // Dev logging

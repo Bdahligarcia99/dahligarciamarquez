@@ -1,6 +1,6 @@
 // Images metadata API routes
 import { Router } from 'express'
-import { requireAdmin } from '../src/middleware/requireAdmin.ts'
+import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
 import { parseMultipartForm, MulterRequest } from '../src/middleware/multipart.js'
 import { storage } from '../src/storage/index.js'
 
@@ -91,7 +91,7 @@ function getExtensionFromMimeType(mimeType: string): string {
 }
 
 // POST /api/uploads/image - Upload image file (admin only)
-router.post('/uploads/image', parseMultipartForm, requireAdmin, async (req: MulterRequest, res) => {
+router.post('/uploads/image', parseMultipartForm, requireSupabaseAdmin, async (req: MulterRequest, res) => {
   try {
     const file = req.file
 
@@ -248,7 +248,7 @@ router.post('/uploads/image', parseMultipartForm, requireAdmin, async (req: Mult
 })
 
 // GET /api/images - Admin only: get all images (optimized with pre-computed data)
-router.get('/', requireAdmin, async (req, res) => {
+router.get('/', requireSupabaseAdmin, async (req, res) => {
   try {
     console.log('🔍 Images endpoint called - starting optimized processing...')
     
@@ -464,7 +464,7 @@ router.get('/', requireAdmin, async (req, res) => {
 })
 
 // GET /api/images/legacy - Admin only: fallback to old runtime processing
-router.get('/legacy', requireAdmin, async (req, res) => {
+router.get('/legacy', requireSupabaseAdmin, async (req, res) => {
   try {
     console.log('Images endpoint called successfully')
     
@@ -638,7 +638,7 @@ function extractImagesFromContent(content: any, post: any, images: any[]) {
 }
 
 // POST /api/images/reconcile - Admin only: full reconciliation (monthly maintenance)
-router.post('/reconcile', requireAdmin, async (req, res) => {
+router.post('/reconcile', requireSupabaseAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting full image reconciliation...')
     
@@ -787,7 +787,7 @@ router.post('/reconcile', requireAdmin, async (req, res) => {
 })
 
 // GET /api/images/reconcile/status - Admin only: get reconciliation history
-router.get('/reconcile/status', requireAdmin, async (req, res) => {
+router.get('/reconcile/status', requireSupabaseAdmin, async (req, res) => {
   try {
     console.log('🔍 Reconciliation status endpoint called')
     
@@ -1252,7 +1252,7 @@ function extractImagesFromContentDirect(content: any, post: any): any[] {
 }
 
 // POST /api/images/metadata - Store image metadata in images table (for library)
-router.post('/metadata', requireAdmin, async (req, res) => {
+router.post('/metadata', requireSupabaseAdmin, async (req, res) => {
   try {
     const { path, mime_type, file_size_bytes, width, height, is_public } = req.body
 

@@ -1,6 +1,7 @@
 // Compression settings hook and context
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { CompressionSettings, getCompressionSettings, updateCompressionSettings, defaultCompressionSettings } from '../lib/compressionApi'
+import { getAdminToken } from '../lib/adminAuth'
 
 interface CompressionContextType {
   settings: CompressionSettings
@@ -19,6 +20,15 @@ export function CompressionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const refreshSettings = async () => {
+    // Only fetch if we have an admin token
+    const adminToken = getAdminToken()
+    if (!adminToken) {
+      setSettings(defaultCompressionSettings)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -89,6 +99,16 @@ export function useCompressionSettingsStatic() {
 
   useEffect(() => {
     let mounted = true
+    
+    // Only fetch if we have an admin token
+    const adminToken = getAdminToken()
+    if (!adminToken) {
+      if (mounted) {
+        setSettings(defaultCompressionSettings)
+        setLoading(false)
+      }
+      return
+    }
     
     getCompressionSettings()
       .then(fetchedSettings => {

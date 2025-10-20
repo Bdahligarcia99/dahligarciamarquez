@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth State Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .status-item { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Auth State Debugger</h1>
+    
+    <div class="section info">
+        <h3>This will help us debug why the dashboard shows 404</h3>
+        <p>Open your browser's developer console (F12) to see detailed logs.</p>
+    </div>
+
+    <div class="section">
+        <button onclick="checkAuthState()">Check Current Auth State</button>
+        <button onclick="refreshProfile()">Refresh Profile</button>
+        <div id="authDebug"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+        
+        const SUPABASE_URL = 'https://evlifkevmsstofbyvgjh.supabase.co'
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2bGlma2V2bXNzdG9mYnl2Z2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY1NTksImV4cCI6MjA3MjEwMjU1OX0.MvCcwzM76yAK_kNYG4scmSz1cKdfsZpjD5GV9DLkWk0'
+        
+        let supabase = null
+        
+        try {
+            supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+            console.log('✅ Supabase client initialized')
+        } catch (error) {
+            console.error('❌ Failed to initialize Supabase:', error)
+        }
+
+        window.checkAuthState = async function() {
+            if (!supabase) {
+                document.getElementById('authDebug').innerHTML = 
+                    '<div class="error">❌ Supabase not initialized</div>'
+                return
+            }
+
+            let output = '<h4>🔍 Current Auth State:</h4>'
+            
+            try {
+                // Check localStorage for session data first
+                console.log('🔄 Checking localStorage for session...')
+                const keys = Object.keys(localStorage)
+                const supabaseKeys = keys.filter(key => key.includes('supabase') || key.startsWith('sb-'))
+                if (supabaseKeys.length > 0) {
+                    output += '<div class="status-item info">📦 Found localStorage keys: ' + supabaseKeys.join(', ') + '</div>'
+                }
+                
+                // Check session
+                console.log('🔄 Getting session...')
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+                
+                if (sessionError) {
+                    output += '<div class="status-item error">❌ Session Error: ' + sessionError.message + '</div>'
+                } else if (session) {
+                    output += '<div class="status-item success">✅ Session Found</div>'
+                    output += '<div class="status-item">👤 User ID: ' + session.user.id + '</div>'
+                    output += '<div class="status-item">📧 Email: ' + session.user.email + '</div>'
+                    
+                    // Check profile
+                    console.log('🔄 Getting profile for user:', session.user.id)
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single()
+                    
+                    if (profileError) {
+                        output += '<div class="status-item error">❌ Profile Error: ' + profileError.message + '</div>'
+                        console.error('Profile error:', profileError)
+                    } else if (profile) {
+                        const isAdmin = profile.role === 'admin'
+                        const roleClass = isAdmin ? 'success' : 'warning'
+                        const roleIcon = isAdmin ? '👑' : '👤'
+                        
+                        output += '<div class="status-item ' + roleClass + '">' + roleIcon + ' Role: <strong>' + profile.role + '</strong></div>'
+                        output += '<div class="status-item">📝 Display Name: ' + (profile.display_name || 'Not set') + '</div>'
+                        output += '<div class="status-item">📅 Created: ' + new Date(profile.created_at).toLocaleString() + '</div>'
+                        
+                        // Show full profile data
+                        output += '<details><summary>Full Profile Data</summary><pre>' + JSON.stringify(profile, null, 2) + '</pre></details>'
+                        
+                        // Check what ProtectedRoute would see
+                        if (isAdmin) {
+                            output += '<div class="status-item success">✅ Should have dashboard access</div>'
+                        } else {
+                            output += '<div class="status-item warning">⚠️ No admin role - dashboard will be blocked</div>'
+                        }
+                    } else {
+                        output += '<div class="status-item error">❌ No profile found for user</div>'
+                    }
+                } else {
+                    output += '<div class="status-item warning">⚠️ No active session</div>'
+                }
+                
+            } catch (error) {
+                output += '<div class="status-item error">❌ Debug Error: ' + error.message + '</div>'
+                console.error('Debug error:', error)
+            }
+            
+            document.getElementById('authDebug').innerHTML = output
+        }
+
+        window.refreshProfile = async function() {
+            if (!supabase) return
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+                if (!session) {
+                    alert('No active session - please sign in first')
+                    return
+                }
+                
+                console.log('🔄 Refreshing profile...')
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single()
+                
+                if (error) {
+                    alert('Profile refresh failed: ' + error.message)
+                } else {
+                    alert('Profile refreshed! Role: ' + profile.role)
+                    checkAuthState() // Update display
+                }
+                
+            } catch (error) {
+                alert('Refresh error: ' + error.message)
+            }
+        }
+
+        // Auto-check on load with multiple attempts
+        setTimeout(checkAuthState, 500)
+        setTimeout(checkAuthState, 2000)
+        setTimeout(checkAuthState, 5000)
+        
+        // Listen for auth changes
+        if (supabase) {
+            supabase.auth.onAuthStateChange((event, session) => {
+                console.log('🔄 Auth state changed:', event, session?.user?.email)
+                setTimeout(checkAuthState, 500) // Small delay to let everything settle
+            })
+        }
+    </script>
+</body>
+</html>
