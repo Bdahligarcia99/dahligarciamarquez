@@ -305,8 +305,7 @@ router.get('/', requireSupabaseAdmin, async (req, res) => {
           is_public,
           created_at,
           profiles!images_owner_id_fkey (
-            display_name,
-            email
+            display_name
           )
         `)
         .order('created_at', { ascending: false })
@@ -343,8 +342,7 @@ router.get('/', requireSupabaseAdmin, async (req, res) => {
             id,
             title,
             profiles!posts_author_id_fkey (
-              display_name,
-              email
+              display_name
             )
           )
         `)
@@ -491,8 +489,7 @@ router.get('/legacy', requireSupabaseAdmin, async (req, res) => {
           is_public,
           created_at,
           profiles!images_owner_id_fkey (
-            display_name,
-            email
+            display_name
           )
         `)
         .order('created_at', { ascending: false })
