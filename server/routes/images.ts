@@ -511,8 +511,7 @@ router.get('/legacy', requireSupabaseAdmin, async (req, res) => {
           content_rich,
           created_at,
           profiles!posts_author_id_fkey (
-            display_name,
-            email
+            display_name
           )
         `)
         .not('cover_image_url', 'is', null)
@@ -897,8 +896,7 @@ async function legacyImageProcessing(req: any, res: any) {
         is_public,
         created_at,
         profiles!images_owner_id_fkey (
-          display_name,
-          email
+          display_name
         )
       `)
       .order('created_at', { ascending: false })
@@ -1071,8 +1069,7 @@ async function directPostgresImageProcessing(req: any, res: any) {
                 created_at: post.created_at,
                 post_id: post.id,
                 post_title: post.title,
-                display_name: null,
-                email: null
+                display_name: null
               })
             }
             
@@ -1136,8 +1133,7 @@ async function directPostgresImageProcessing(req: any, res: any) {
         is_public: img.is_public,
         created_at: img.created_at,
         owner: {
-          display_name: null,
-          email: null
+          display_name: null
         },
         post_title: null,
         post_id: null
@@ -1156,8 +1152,7 @@ async function directPostgresImageProcessing(req: any, res: any) {
       is_public: true,
       created_at: img.created_at,
       owner: {
-        display_name: null,
-        email: null
+        display_name: null
       },
       post_title: img.post_title,
       post_id: img.post_id,
@@ -1228,8 +1223,7 @@ function extractImagesFromContentDirect(content: any, post: any): any[] {
       created_at: post.created_at,
       post_id: post.id,
       post_title: post.title,
-      display_name: null,
-      email: null
+      display_name: null
     })
   }
   
