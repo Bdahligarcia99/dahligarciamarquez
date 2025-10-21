@@ -20,5 +20,13 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
   },
+  optimizeDeps: {
+    include: ['react', 'react-dom']
+  }
 })
