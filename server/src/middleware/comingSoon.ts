@@ -1,7 +1,7 @@
 // Coming Soon middleware - blocks non-admin traffic when enabled
 import { Request, Response, NextFunction } from 'express'
-import { getComingSoon } from '../state/runtimeConfig.js'
-import { SERVER_ADMIN_TOKEN } from '../config.js'
+import { getComingSoon } from '../state/runtimeConfig.ts'
+import { SERVER_ADMIN_TOKEN } from '../config.ts'
 
 /**
  * Coming Soon middleware

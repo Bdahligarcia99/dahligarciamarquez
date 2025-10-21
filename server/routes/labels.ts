@@ -2,7 +2,7 @@
 import { Router } from 'express'
 import { getSupabaseAdmin } from '../auth/supabaseAdmin.ts'
 import { requireSupabaseAdmin } from '../src/middleware/requireSupabaseAdmin.ts'
-import { AuthenticatedRequest } from '../middleware/requireUser.js'
+import { AuthenticatedRequest } from '../middleware/requireUser.ts'
 
 const router = Router()
 

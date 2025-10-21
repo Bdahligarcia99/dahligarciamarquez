@@ -2,7 +2,7 @@
 // Ensures user has admin role in profiles table
 
 import { Response, NextFunction } from 'express'
-import { AuthenticatedRequest, requireUser } from './requireUser.js'
+import { AuthenticatedRequest, requireUser } from './requireUser.ts'
 
 export async function requireAdmin(
   req: AuthenticatedRequest,

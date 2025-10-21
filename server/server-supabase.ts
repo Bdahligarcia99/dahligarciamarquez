@@ -1,4 +1,4 @@
-import { config } from './src/config.js'
+import { config } from './src/config.ts'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -7,18 +7,18 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 // Import routes
-import authRoutes from './routes/auth.js'
-import labelsRoutes from './routes/labels.js'
-import postsRoutes from './routes/posts.js'
-import imagesRoutes from './routes/images.js'
-import adminRoutes from './routes/admin.js'
-import storageRoutes from './routes/storage.js'
+import authRoutes from './routes/auth.ts'
+import labelsRoutes from './routes/labels.ts'
+import postsRoutes from './routes/posts.ts'
+import imagesRoutes from './routes/images.ts'
+import adminRoutes from './routes/admin.ts'
+import storageRoutes from './routes/storage.ts'
 
 // Import storage info for startup logging
-import { storageInfo } from './src/storage/index.js'
+import { storageInfo } from './src/storage/index.ts'
 
 // Import middleware
-import { comingSoonMiddleware } from './src/middleware/comingSoon.js'
+import { comingSoonMiddleware } from './src/middleware/comingSoon.ts'
 
 const app = express()
 const PORT = config.server.port
