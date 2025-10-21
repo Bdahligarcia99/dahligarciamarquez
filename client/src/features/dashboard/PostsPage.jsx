@@ -39,7 +39,7 @@ const PostsPage = () => {
     try {
       setLoading(true)
       setError(null)
-      const postsData = await supabaseAdminGet('/api/posts')
+      const postsData = await supabaseAdminGet('/api/posts/admin')
       // Handle both old format (array) and new format (object with items)
       setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
     } catch (err) {
