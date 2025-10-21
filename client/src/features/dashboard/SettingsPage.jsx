@@ -37,8 +37,13 @@ const SettingsPage = () => {
   const checkDbNow = async () => {
     try {
       setDbLoading(true)
-      const dbData = await apiGet('/api/db/now')
-      setDbNow(dbData)
+      // Only check DB time in development (endpoint not available in production)
+      if (import.meta.env.DEV) {
+        const dbData = await apiGet('/api/db/now')
+        setDbNow(dbData)
+      } else {
+        setDbNow({ message: 'DB check only available in development' })
+      }
     } catch (err) {
       setDbNow({ error: err.message })
     } finally {

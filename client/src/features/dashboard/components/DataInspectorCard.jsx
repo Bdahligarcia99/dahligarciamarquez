@@ -18,10 +18,12 @@ const DataInspectorCard = () => {
       setError(null)
       
       const [dbInfo, postsCount] = await Promise.all([
-        // Fetch debug DB info
-        fetch(`${getApiBase()}/__debug/db?counts=1`)
-          .then(res => res.ok ? res.json() : null)
-          .catch(() => null),
+        // Fetch debug DB info (only available in development)
+        import.meta.env.DEV 
+          ? fetch(`${getApiBase()}/__debug/db?counts=1`)
+              .then(res => res.ok ? res.json() : null)
+              .catch(() => null)
+          : Promise.resolve(null),
         // Fetch posts count
         fetchPostsTotal().catch(() => 0)
       ])
