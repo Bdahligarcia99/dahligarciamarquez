@@ -19,7 +19,9 @@ const BlogList = () => {
       try {
         setLoading(true)
         const data = await postsAPI.getAllPosts()
-        setPosts(data)
+        // Handle API response format: { items: [...], page, limit, total }
+        const postsArray = data?.items || data || []
+        setPosts(postsArray)
         setError(null)
       } catch (err) {
         console.error('Failed to fetch posts:', err)
@@ -57,11 +59,11 @@ const BlogList = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-serif font-bold text-secondary-900 mb-4">
-          {SITE_NAME}
+          Stories
         </h1>
         <p className="text-lg text-secondary-600 max-w-2xl mx-auto">
           A collection of personal experiences, thoughts, and reflections. 
@@ -83,7 +85,7 @@ const BlogList = () => {
           </p>
         </div>
       ) : (
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-1">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {posts.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}

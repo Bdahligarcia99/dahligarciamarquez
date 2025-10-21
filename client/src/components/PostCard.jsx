@@ -1,62 +1,46 @@
 import { Link } from 'react-router-dom'
-import { formatDate } from '../utils/formatDate'
 
 const PostCard = ({ post }) => {
-  const { title, slug, excerpt, created_at, tags, image_url } = post
+  const { title, slug, cover_image_url } = post
 
   return (
-    <article className="card hover:shadow-lg transition-shadow duration-300">
-      {/* Featured Image */}
-      {image_url && (
-        <div className="mb-4 -mt-6 -mx-6">
-          <img 
-            src={image_url} 
-            alt={title}
-            className="w-full h-48 object-cover rounded-t-lg"
-          />
+    <Link to={`/blog/${slug}`} className="group block">
+      <article className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+        {/* Cover Image or Placeholder */}
+        <div className="aspect-video bg-gradient-to-br from-primary-100 to-primary-200 relative overflow-hidden">
+          {cover_image_url ? (
+            <img 
+              src={cover_image_url} 
+              alt={title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg 
+                className="w-20 h-20 text-primary-400 opacity-50" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={1.5} 
+                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" 
+                />
+              </svg>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Tags */}
-      {tags && tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {tags.map((tag, index) => (
-            <span 
-              key={index}
-              className="inline-block px-2 py-1 text-xs font-medium bg-primary-50 text-primary-700 rounded-full"
-            >
-              {tag}
-            </span>
-          ))}
+        {/* Title */}
+        <div className="p-6">
+          <h2 className="text-xl font-serif font-semibold text-secondary-900 group-hover:text-primary-600 transition-colors line-clamp-2">
+            {title}
+          </h2>
         </div>
-      )}
-
-      {/* Title */}
-      <h2 className="text-xl font-serif font-semibold text-secondary-900 mb-2 hover:text-primary-600 transition-colors">
-        <Link to={`/blog/${slug}`}>
-          {title}
-        </Link>
-      </h2>
-
-      {/* Excerpt */}
-      <p className="text-secondary-600 leading-relaxed mb-4 line-clamp-3">
-        {excerpt}
-      </p>
-
-      {/* Meta Info */}
-      <div className="flex items-center justify-between pt-4 border-t border-secondary-100">
-        <time className="text-sm text-secondary-500" dateTime={created_at}>
-          {formatDate(created_at)}
-        </time>
-        
-        <Link 
-          to={`/blog/${slug}`}
-          className="text-primary-600 hover:text-primary-700 font-medium text-sm transition-colors"
-        >
-          Read more →
-        </Link>
-      </div>
-    </article>
+      </article>
+    </Link>
   )
 }
 
