@@ -4,6 +4,9 @@
 import { Request, Response, NextFunction } from 'express'
 import { getSupabaseAdmin } from '../auth/supabaseAdmin.ts'
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string

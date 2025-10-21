@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express'
 import { SERVER_ADMIN_TOKEN } from '../config.ts'
 import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 export interface AdminOrUserRequest extends Request {
   user?: {
     id: string

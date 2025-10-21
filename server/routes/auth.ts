@@ -4,6 +4,9 @@ import { getSupabaseAdmin } from '../auth/supabaseAdmin.ts'
 
 const router = Router()
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 // Database connectivity check
 router.post('/db-ping', async (req, res) => {
   try {

@@ -6,6 +6,9 @@ import { AuthenticatedRequest } from '../middleware/requireUser.ts'
 
 const router = Router()
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 // GET /api/labels - Public access to all labels
 router.get('/', async (req, res) => {
   try {

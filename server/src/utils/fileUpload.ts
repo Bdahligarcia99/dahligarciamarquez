@@ -1,6 +1,9 @@
 import { Request } from 'express'
 import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 /**
  * File upload constraints
  */

@@ -159,6 +159,10 @@ process.on('SIGINT', () => {
 app.listen(PORT, () => {
   console.log(`🚀 Storytelling API v2.0 running on port ${PORT}`)
   console.log(`🏥 Health check: http://localhost:${PORT}/healthz`)
+  
+  // DEBUG: Show which env file is being used
+  console.log(`🔍 DEBUG: REAL_ENV="${process.env.REAL_ENV || 'NOT_SET'}"`)
+  
   console.log(`🔐 Auth: Supabase JWT`)
   console.log(`🗄️ Database: Supabase Postgres`)
   

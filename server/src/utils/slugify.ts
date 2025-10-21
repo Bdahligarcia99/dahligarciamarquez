@@ -1,5 +1,8 @@
 import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 // Reserved words that cannot be used as slugs
 const RESERVED_WORDS = [
   'new', 'admin', 'edit', 'create', 'update', 'delete', 'api',
