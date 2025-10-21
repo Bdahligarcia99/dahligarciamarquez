@@ -30,7 +30,7 @@ interface PostEditorProps {
 export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const { id: routePostId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const postId = routePostId
   const editorRef = useRef<RichTextEditorRef>(null)
   const [title, setTitle] = useState('')
@@ -181,8 +181,8 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       return
     }
 
-    // Ensure user is authenticated
-    if (!user?.id) {
+    // Ensure user is authenticated and has a profile
+    if (!user?.id && !profile?.id) {
       setError('You must be signed in to create or edit posts')
       return
     }
@@ -245,7 +245,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         cover_image_alt: coverImageAlt?.trim() || null,
         status,
         label_ids: selectedLabels,
-        author_id: user?.id // Include current user ID as author
+        author_id: profile?.id || user?.id // Use profile ID (which matches database) or fallback to user ID
       }
 
       let savedPost
