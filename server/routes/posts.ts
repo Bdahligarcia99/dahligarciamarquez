@@ -26,6 +26,9 @@ import { imageTrackingService } from '../src/services/imageTrackingService.ts'
 
 const router = Router()
 
+// Initialize Supabase admin client
+const supabaseAdmin = getSupabaseAdmin()
+
 // GET /api/posts - Public: published posts only
 router.get('/', async (req, res) => {
   try {
