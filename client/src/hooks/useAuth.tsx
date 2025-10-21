@@ -136,21 +136,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Fetch or create profile
             console.log('🔍 Attempting to fetch profile for:', session.user.email)
             
-            // TEMPORARY WORKAROUND: Hardcode admin for dagama02@gmail.com
-            if (session.user.email === 'dagama02@gmail.com') {
-              console.log('🔧 TEMPORARY: Using hardcoded admin profile for dagama02@gmail.com')
-              const hardcodedProfile = {
-                id: 'f354271d-201d-4d54-85d4-0948046e65db', // Real profile ID from database
-                display_name: 'Dagama02',
-                role: 'admin' as const,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }
-              console.log('✅ Using hardcoded admin profile:', hardcodedProfile.role)
-              setProfile(hardcodedProfile)
-              return
-            }
-            
             let userProfile = await fetchProfile(session.user.id)
             if (!userProfile) {
               console.log('📝 No profile found, creating profile for:', session.user.email)
