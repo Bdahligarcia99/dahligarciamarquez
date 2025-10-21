@@ -140,8 +140,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (session.user.email === 'dagama02@gmail.com') {
               console.log('🔧 TEMPORARY: Using hardcoded admin profile for dagama02@gmail.com')
               const hardcodedProfile = {
-                id: session.user.id,
-                display_name: 'dagama02',
+                id: 'f354271d-201d-4d54-85d4-0948046e65db', // Real profile ID from database
+                display_name: 'Dagama02',
                 role: 'admin' as const,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
