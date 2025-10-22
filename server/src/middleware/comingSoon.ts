@@ -10,6 +10,11 @@ import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
  * - If enabled: allow admin requests, block others with 503 response
  */
 export async function comingSoonMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Always allow the Coming Soon status endpoint itself
+  if (req.path === '/api/coming-soon') {
+    return next()
+  }
+
   // If Coming Soon mode is disabled, allow all requests
   if (!getComingSoon()) {
     return next()
