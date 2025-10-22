@@ -20,17 +20,19 @@ export default function Navbar() {
     user = auth.user;
     profile = auth.profile;
     isAdmin = profile?.role === 'admin';
-    
-    // Debug logging
-    if (import.meta.env.DEV) {
-      console.log('🔍 [Navbar] User:', user?.email)
-      console.log('🔍 [Navbar] Profile:', profile)
-      console.log('🔍 [Navbar] Role:', profile?.role)
-      console.log('🔍 [Navbar] isAdmin:', isAdmin)
-    }
   } catch {
     // useAuth not available (Supabase not configured)
   }
+
+  // Debug logging when profile changes
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('🔍 [Navbar] Profile changed:', profile)
+      console.log('🔍 [Navbar] User:', user?.email)
+      console.log('🔍 [Navbar] Role:', profile?.role)
+      console.log('🔍 [Navbar] isAdmin:', isAdmin)
+    }
+  }, [profile, user, isAdmin])
 
   useEffect(() => {
     function onDocClick(e) {
