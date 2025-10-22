@@ -47,11 +47,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     console.log('🔍 Fetching profile for user:', userId)
     
     try {
-      const { data, error } = await client
+      // Add timeout to prevent hanging
+      const fetchPromise = client
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Profile fetch timed out after 10 seconds')), 10000)
+      )
+      
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any
 
       if (error) {
         console.error('❌ Error fetching profile:', error.message, 'Code:', error.code)
@@ -65,8 +72,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('⚠️ No profile data returned')
         return null
       }
-    } catch (error) {
-      console.error('❌ Profile fetch exception:', error)
+    } catch (error: any) {
+      console.error('❌ Profile fetch exception:', error?.message || error)
       return null
     }
   }
