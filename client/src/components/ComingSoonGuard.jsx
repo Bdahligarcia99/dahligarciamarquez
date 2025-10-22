@@ -53,9 +53,17 @@ export default function ComingSoonGuard({ children }) {
           <p className="text-xl mb-8 opacity-90">
             We're working hard to bring you something amazing. Please check back soon.
           </p>
-          <div className="text-lg opacity-75">
+          <div className="text-lg opacity-75 mb-8">
             {import.meta.env.VITE_SITE_NAME || 'Dahli Garcia Marquez'}
           </div>
+          
+          {/* Admin Sign In Button */}
+          <a
+            href="/auth/signin"
+            className="inline-block px-6 py-3 bg-white text-primary-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Admin Sign In
+          </a>
         </div>
       </div>
     )
