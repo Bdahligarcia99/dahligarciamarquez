@@ -104,6 +104,19 @@ export default function SignIn() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8">
+        {/* Back button */}
+        <div className="flex justify-start">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+          </button>
+        </div>
+        
         <div>
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
             Sign in to your account

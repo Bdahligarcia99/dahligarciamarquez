@@ -9,9 +9,33 @@ export default function ComingSoonGuard({ children }) {
   const location = useLocation()
   const [comingSoonEnabled, setComingSoonEnabled] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [showAdminButton, setShowAdminButton] = useState(false)
+  const [escapeCount, setEscapeCount] = useState(0)
 
   useEffect(() => {
     checkComingSoonStatus()
+  }, [])
+
+  // Secret key combo: Press Escape 3 times to reveal admin button
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setEscapeCount(prev => {
+          const newCount = prev + 1
+          if (newCount >= 3) {
+            setShowAdminButton(true)
+            return 0 // Reset counter
+          }
+          return newCount
+        })
+        
+        // Reset counter after 2 seconds if not completed
+        setTimeout(() => setEscapeCount(0), 2000)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   const checkComingSoonStatus = async () => {
@@ -63,13 +87,22 @@ export default function ComingSoonGuard({ children }) {
             {import.meta.env.VITE_SITE_NAME || 'Dahli Garcia Marquez'}
           </div>
           
-          {/* Admin Sign In Button */}
-          <a
-            href="/auth/signin"
-            className="inline-block px-6 py-3 bg-white text-primary-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            Admin Sign In
-          </a>
+          {/* Admin Sign In Button - Only shown after secret key combo */}
+          {showAdminButton && (
+            <a
+              href="/auth/signin"
+              className="inline-block px-6 py-3 bg-white text-primary-600 font-semibold rounded-lg hover:bg-gray-100 transition-all transform hover:scale-105 animate-fade-in"
+            >
+              Admin Sign In
+            </a>
+          )}
+          
+          {/* Hint for admin (very subtle) */}
+          {!showAdminButton && (
+            <div className="mt-8 text-xs opacity-0 hover:opacity-30 transition-opacity">
+              Press ESC 3x
+            </div>
+          )}
         </div>
       </div>
     )

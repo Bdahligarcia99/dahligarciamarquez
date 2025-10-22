@@ -19,7 +19,6 @@ import StoriesPage from './pages/StoriesPage'
 import StoryDetail from './pages/StoryDetail'
 import NotFound from './components/NotFound'
 import DevNetInspector from './components/DevNetInspector'
-import AuthDebugger from './components/AuthDebugger'
 
 // Import PostPreview for the new preview route
 import PostPreview from './components/posts/PostPreview'
@@ -107,9 +106,6 @@ function AppShell() {
 
       {/* Dev-only network inspector */}
       <DevNetInspector />
-      
-      {/* Auth debugger for development */}
-      <AuthDebugger />
     </>
   )
 }
