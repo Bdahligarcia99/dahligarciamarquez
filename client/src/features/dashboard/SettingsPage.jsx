@@ -80,6 +80,8 @@ const SettingsPage = () => {
     try {
       const newStatus = !comingSoonEnabled
       const data = await supabaseAdminPost('/api/admin/coming-soon', { enabled: newStatus })
+      
+      // Immediately update UI state to match server response
       setComingSoonEnabled(data.enabled)
       setComingSoonSuccess(`Coming Soon mode ${data.enabled ? 'enabled' : 'disabled'} successfully`)
       
@@ -87,6 +89,8 @@ const SettingsPage = () => {
       setTimeout(() => setComingSoonSuccess(null), 3000)
     } catch (error) {
       setComingSoonError(`Failed to toggle Coming Soon mode: ${error.message}`)
+      // Revert UI state on error
+      await fetchComingSoonStatus()
     } finally {
       setComingSoonLoading(false)
     }
@@ -152,7 +156,8 @@ const SettingsPage = () => {
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         <h2 className="text-lg font-semibold mb-4">Coming Soon Mode</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Enable Coming Soon mode to block all non-admin traffic with a maintenance page. Admins can still access the site normally.
+          Enable Coming Soon mode to show a maintenance page to visitors. Admins can still access the site normally. 
+          <strong className="block mt-1">This setting persists across server restarts.</strong>
         </p>
         
         <div className="flex items-center justify-between">
@@ -175,7 +180,7 @@ const SettingsPage = () => {
           
           <StatusBadge
             status={comingSoonEnabled ? 'warning' : 'success'}
-            text={comingSoonEnabled ? 'Coming Soon Active' : 'Site Live'}
+            text={comingSoonEnabled ? 'Visitors Blocked' : 'Site Public'}
           />
         </div>
 

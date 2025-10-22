@@ -16,7 +16,8 @@ export async function comingSoonMiddleware(req: Request, res: Response, next: Ne
   }
 
   // If Coming Soon mode is disabled, allow all requests
-  if (!getComingSoon()) {
+  const isComingSoonEnabled = await getComingSoon()
+  if (!isComingSoonEnabled) {
     return next()
   }
 

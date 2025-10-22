@@ -22,11 +22,10 @@ try {
 }
 
 // GET /api/admin/coming-soon - Get Coming Soon mode status
-router.get('/coming-soon', requireSupabaseAdmin, (req, res) => {
+router.get('/coming-soon', requireSupabaseAdmin, async (req, res) => {
   try {
-    res.json({
-      enabled: getComingSoon()
-    })
+    const enabled = await getComingSoon()
+    res.json({ enabled })
   } catch (error) {
     console.error('Error getting Coming Soon status:', error)
     res.status(500).json({ error: 'Failed to get Coming Soon status' })
@@ -34,7 +33,7 @@ router.get('/coming-soon', requireSupabaseAdmin, (req, res) => {
 })
 
 // PUT/POST /api/admin/coming-soon - Set Coming Soon mode
-router.put('/coming-soon', requireSupabaseAdmin, (req, res) => {
+router.put('/coming-soon', requireSupabaseAdmin, async (req, res) => {
   try {
     const { enabled } = req.body
     
@@ -42,10 +41,13 @@ router.put('/coming-soon', requireSupabaseAdmin, (req, res) => {
       return res.status(400).json({ error: 'enabled must be a boolean value' })
     }
     
-    setComingSoon(enabled)
+    // Extract user ID from request if available
+    const userId = (req as any).user?.id
+    
+    await setComingSoon(enabled, userId)
     
     res.json({
-      enabled: getComingSoon()
+      enabled: await getComingSoon()
     })
   } catch (error) {
     console.error('Error setting Coming Soon status:', error)
@@ -54,7 +56,7 @@ router.put('/coming-soon', requireSupabaseAdmin, (req, res) => {
 })
 
 // POST /api/admin/coming-soon - Set Coming Soon mode (alias for PUT)
-router.post('/coming-soon', requireSupabaseAdmin, (req, res) => {
+router.post('/coming-soon', requireSupabaseAdmin, async (req, res) => {
   try {
     const { enabled } = req.body
     
@@ -62,10 +64,13 @@ router.post('/coming-soon', requireSupabaseAdmin, (req, res) => {
       return res.status(400).json({ error: 'enabled must be a boolean value' })
     }
     
-    setComingSoon(enabled)
+    // Extract user ID from request if available
+    const userId = (req as any).user?.id
+    
+    await setComingSoon(enabled, userId)
     
     res.json({
-      enabled: getComingSoon()
+      enabled: await getComingSoon()
     })
   } catch (error) {
     console.error('Error setting Coming Soon status:', error)
