@@ -49,7 +49,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       // Use direct REST API since Supabase JS client .single() hangs in production
       // Use session from localStorage directly instead of client.auth.getSession()
-      console.log('📦 Getting session from localStorage...')
       const sessionData = localStorage.getItem('sb-evlifkevmsstofbyvgjh-auth-token')
       if (!sessionData) {
         console.error('❌ No session data in localStorage')
@@ -62,12 +61,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return null
       }
       
-      console.log('✅ Session token retrieved')
-      
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://evlifkevmsstofbyvgjh.supabase.co'
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2bGlma2V2bXNzdG9mYnl2Z2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY1NTksImV4cCI6MjA3MjEwMjU1OX0.MvCcwzM76yAK_kNYG4scmSz1cKdfsZpjD5GV9DLkWk0'
       
-      console.log('🌐 Fetching profile from REST API...')
       const response = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`, {
         headers: {
           'apikey': supabaseKey,
@@ -76,8 +72,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       })
       
-      console.log('📡 Response status:', response.status)
-      
       if (!response.ok) {
         console.error('❌ Profile fetch failed with status:', response.status)
         return null
@@ -85,8 +79,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       const profiles = await response.json()
       const data = profiles[0] || null
-      
-      console.log('📄 Profile data:', data)
 
       if (data) {
         console.log('✅ Profile fetched successfully:', data.role)

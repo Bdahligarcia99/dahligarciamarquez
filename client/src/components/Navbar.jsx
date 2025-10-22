@@ -24,16 +24,6 @@ export default function Navbar() {
     // useAuth not available (Supabase not configured)
   }
 
-  // Debug logging when profile changes
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log('🔍 [Navbar] Profile changed:', profile)
-      console.log('🔍 [Navbar] User:', user?.email)
-      console.log('🔍 [Navbar] Role:', profile?.role)
-      console.log('🔍 [Navbar] isAdmin:', isAdmin)
-    }
-  }, [profile, user, isAdmin])
-
   useEffect(() => {
     function onDocClick(e) {
       if (!menuRef.current) return;
