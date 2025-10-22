@@ -47,23 +47,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
     console.log('🔍 Fetching profile for user:', userId)
     
     try {
-      // Add timeout to prevent hanging
-      const fetchPromise = client
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timed out after 10 seconds')), 10000)
-      )
-      
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any
-
-      if (error) {
-        console.error('❌ Error fetching profile:', error.message, 'Code:', error.code)
+      // Use direct REST API since Supabase JS client .single() hangs in production
+      // Get the current session for auth token
+      const { data: { session } } = await client.auth.getSession()
+      if (!session?.access_token) {
+        console.error('❌ No session token available for profile fetch')
         return null
       }
+      
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://evlifkevmsstofbyvgjh.supabase.co'
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2bGlma2V2bXNzdG9mYnl2Z2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY1NTksImV4cCI6MjA3MjEwMjU1OX0.MvCcwzM76yAK_kNYG4scmSz1cKdfsZpjD5GV9DLkWk0'
+      
+      const response = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`, {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (!response.ok) {
+        console.error('❌ Profile fetch failed with status:', response.status)
+        return null
+      }
+      
+      const profiles = await response.json()
+      const data = profiles[0] || null
 
       if (data) {
         console.log('✅ Profile fetched successfully:', data.role)
