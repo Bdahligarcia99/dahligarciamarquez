@@ -11,9 +11,19 @@ export default function ComingSoonGuard({ children }) {
   const [checking, setChecking] = useState(true)
   const [showAdminButton, setShowAdminButton] = useState(false)
   const [escapeCount, setEscapeCount] = useState(0)
+  const [showWakingMessage, setShowWakingMessage] = useState(false)
 
   useEffect(() => {
     checkComingSoonStatus()
+    
+    // Show "waking up" message after 3 seconds if still loading
+    const timer = setTimeout(() => {
+      if (checking || authLoading) {
+        setShowWakingMessage(true)
+      }
+    }, 3000)
+    
+    return () => clearTimeout(timer)
   }, [])
 
   // Secret key combo: Press Escape 3 times to reveal admin button
@@ -65,9 +75,16 @@ export default function ComingSoonGuard({ children }) {
   if (!isAuthRoute && (authLoading || checking)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
+        <div className="text-center max-w-md px-6">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600 font-medium">Loading...</p>
+          
+          {/* Show friendly message if loading takes a while (server cold start) */}
+          {showWakingMessage && (
+            <p className="text-sm text-gray-500 mt-4 animate-fade-in">
+              Apologies for the delay, site is waking up...
+            </p>
+          )}
         </div>
       </div>
     )
