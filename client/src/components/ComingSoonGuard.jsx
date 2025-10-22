@@ -14,8 +14,15 @@ export default function ComingSoonGuard({ children }) {
 
   const checkComingSoonStatus = async () => {
     try {
-      const data = await supabaseAdminGet('/api/admin/coming-soon')
-      setComingSoonEnabled(data.enabled)
+      // Use regular fetch since this needs to be accessible without auth
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.dahligarciamarquez.com'}/api/coming-soon`)
+      if (response.ok) {
+        const data = await response.json()
+        setComingSoonEnabled(data.enabled)
+      } else {
+        // If endpoint doesn't exist or fails, assume it's off
+        setComingSoonEnabled(false)
+      }
     } catch (error) {
       // If we can't check status, assume it's off (fail open)
       console.warn('Failed to check Coming Soon status:', error)

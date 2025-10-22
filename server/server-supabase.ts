@@ -19,6 +19,7 @@ import { storageInfo } from './src/storage/index.ts'
 
 // Import middleware
 import { comingSoonMiddleware } from './src/middleware/comingSoon.ts'
+import { getComingSoon } from './src/state/runtimeConfig.ts'
 
 const app = express()
 const PORT = config.server.port
@@ -104,6 +105,11 @@ app.get('/healthz', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   })
+})
+
+// Public endpoint to check Coming Soon status (must be BEFORE middleware)
+app.get('/api/coming-soon', (req, res) => {
+  res.json({ enabled: getComingSoon() })
 })
 
 // Coming Soon middleware - blocks non-admin traffic when enabled
