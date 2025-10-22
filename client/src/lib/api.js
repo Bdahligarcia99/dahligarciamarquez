@@ -484,7 +484,7 @@ export async function supabaseAdminGet(path, { signal } = {}) {
 // Supabase-based stats helpers
 export async function supabaseFetchPostsTotal({ signal } = {}) {
   try {
-    const data = await supabaseAdminGet('/api/posts?page=1&limit=1', { signal });
+    const data = await supabaseAdminGet('/api/posts/admin?page=1&limit=1', { signal });
     return typeof data.total === 'number' ? data.total : 0;
   } catch (error) {
     console.warn('Failed to fetch posts total:', error);
@@ -494,7 +494,7 @@ export async function supabaseFetchPostsTotal({ signal } = {}) {
 
 export async function supabaseFetchDbHealth({ signal } = {}) {
   try {
-    const data = await supabaseAdminGet('/api/admin/health', { signal });
+    const data = await supabaseAdminGet('/api/db/health', { signal });
     return { ok: !!data.ok };
   } catch (error) {
     console.warn('Failed to fetch DB health:', error);
