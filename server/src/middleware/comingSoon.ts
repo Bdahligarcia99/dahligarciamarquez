@@ -2,20 +2,21 @@
 import { Request, Response, NextFunction } from 'express'
 import { getComingSoon } from '../state/runtimeConfig.ts'
 import { SERVER_ADMIN_TOKEN } from '../config.ts'
+import { getSupabaseAdmin } from '../../auth/supabaseAdmin.ts'
 
 /**
  * Coming Soon middleware
  * - If Coming Soon mode is disabled: allow all requests
  * - If enabled: allow admin requests, block others with 503 response
  */
-export function comingSoonMiddleware(req: Request, res: Response, next: NextFunction): void {
+export async function comingSoonMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   // If Coming Soon mode is disabled, allow all requests
   if (!getComingSoon()) {
     return next()
   }
 
-  // Check if request has valid admin token (same logic as requireAdmin)
-  const isAdminRequest = checkAdminToken(req)
+  // Check if request has valid admin authentication
+  const isAdminRequest = await checkAdminAuth(req)
   
   if (isAdminRequest) {
     // Admin requests are allowed even in Coming Soon mode
@@ -90,35 +91,58 @@ export function comingSoonMiddleware(req: Request, res: Response, next: NextFunc
 }
 
 /**
- * Check if request has valid admin token
- * Reuses the same logic as requireAdmin middleware
+ * Check if request has valid admin authentication
+ * Supports both Supabase JWT (primary) and legacy admin token
  */
-function checkAdminToken(req: Request): boolean {
-  // Check if server admin token is configured
-  if (!SERVER_ADMIN_TOKEN) {
-    return false
-  }
-
-  // Extract token from headers (case-insensitive)
-  let token: string | undefined
-
-  // Check Authorization header (Bearer token)
+async function checkAdminAuth(req: Request): Promise<boolean> {
+  // First, check for Supabase JWT token
   const authHeader = req.get('authorization') || req.get('Authorization')
-  if (authHeader) {
-    const trimmedAuth = authHeader.trim()
-    if (trimmedAuth.toLowerCase().startsWith('bearer ')) {
-      token = trimmedAuth.slice(7).trim()
+  if (authHeader?.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim()
+    
+    try {
+      const supabase = getSupabaseAdmin()
+      const { data: { user }, error } = await supabase.auth.getUser(token)
+      
+      if (!error && user) {
+        // Check if user has admin role in profiles table
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        
+        if (profile?.role === 'admin') {
+          return true
+        }
+      }
+    } catch (error) {
+      // JWT verification failed, continue to legacy token check
     }
   }
 
-  // Check X-Admin-Token header if no Bearer token found
-  if (!token) {
-    const xAdminToken = req.get('x-admin-token') || req.get('X-Admin-Token')
-    if (xAdminToken) {
-      token = xAdminToken.trim()
+  // Fallback to legacy admin token (if configured)
+  if (SERVER_ADMIN_TOKEN) {
+    let token: string | undefined
+
+    // Check Authorization header (Bearer token)
+    if (authHeader?.toLowerCase().startsWith('bearer ')) {
+      token = authHeader.slice(7).trim()
+    }
+
+    // Check X-Admin-Token header if no Bearer token found
+    if (!token) {
+      const xAdminToken = req.get('x-admin-token') || req.get('X-Admin-Token')
+      if (xAdminToken) {
+        token = xAdminToken.trim()
+      }
+    }
+
+    // Validate legacy token
+    if (token === SERVER_ADMIN_TOKEN) {
+      return true
     }
   }
 
-  // Validate token
-  return token === SERVER_ADMIN_TOKEN
+  return false
 }

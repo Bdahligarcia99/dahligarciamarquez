@@ -33,8 +33,28 @@ router.get('/coming-soon', requireSupabaseAdmin, (req, res) => {
   }
 })
 
-// PUT /api/admin/coming-soon - Set Coming Soon mode
+// PUT/POST /api/admin/coming-soon - Set Coming Soon mode
 router.put('/coming-soon', requireSupabaseAdmin, (req, res) => {
+  try {
+    const { enabled } = req.body
+    
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean value' })
+    }
+    
+    setComingSoon(enabled)
+    
+    res.json({
+      enabled: getComingSoon()
+    })
+  } catch (error) {
+    console.error('Error setting Coming Soon status:', error)
+    res.status(500).json({ error: 'Failed to set Coming Soon status' })
+  }
+})
+
+// POST /api/admin/coming-soon - Set Coming Soon mode (alias for PUT)
+router.post('/coming-soon', requireSupabaseAdmin, (req, res) => {
   try {
     const { enabled } = req.body
     
