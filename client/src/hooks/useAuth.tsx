@@ -136,19 +136,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Fetch or create profile
             console.log('🔍 Attempting to fetch profile for:', session.user.email)
             
-            let userProfile = await fetchProfile(session.user.id)
-            if (!userProfile) {
-              console.log('📝 No profile found, creating profile for:', session.user.email)
-              // Create profile for any user who doesn't have one (new signups or existing users)
-              userProfile = await createProfile(session.user)
-              if (userProfile) {
-                console.log('✅ Profile created successfully:', userProfile.role)
-              } else {
-                console.log('❌ Failed to create profile')
+            try {
+              let userProfile = await fetchProfile(session.user.id)
+              if (!userProfile) {
+                console.log('📝 No profile found, creating profile for:', session.user.email)
+                // Create profile for any user who doesn't have one (new signups or existing users)
+                userProfile = await createProfile(session.user)
+                if (userProfile) {
+                  console.log('✅ Profile created successfully:', userProfile.role)
+                } else {
+                  console.log('❌ Failed to create profile')
+                }
               }
+              console.log('🔄 Setting profile state:', userProfile?.role || 'null')
+              setProfile(userProfile)
+            } catch (profileError) {
+              console.error('❌ Error in profile fetch/create flow:', profileError)
+              setProfile(null)
             }
-            console.log('🔄 Setting profile state:', userProfile?.role || 'null')
-            setProfile(userProfile)
           } else {
             console.log('❌ Clearing user from auth change')
             setUser(null)
