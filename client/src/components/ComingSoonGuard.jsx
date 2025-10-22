@@ -1,10 +1,12 @@
 // Coming Soon Guard - blocks non-admin users when maintenance mode is active
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabaseAdminGet } from '../lib/api'
 
 export default function ComingSoonGuard({ children }) {
   const { profile, loading: authLoading } = useAuth()
+  const location = useLocation()
   const [comingSoonEnabled, setComingSoonEnabled] = useState(false)
   const [checking, setChecking] = useState(true)
 
@@ -32,8 +34,11 @@ export default function ComingSoonGuard({ children }) {
     }
   }
 
-  // Show loading while checking auth and coming soon status
-  if (authLoading || checking) {
+  // Always allow auth routes (sign in, sign up, forgot password)
+  const isAuthRoute = location.pathname.startsWith('/auth/')
+  
+  // Show loading while checking auth and coming soon status (but not on auth pages)
+  if (!isAuthRoute && (authLoading || checking)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -45,7 +50,8 @@ export default function ComingSoonGuard({ children }) {
   }
 
   // If Coming Soon is enabled and user is not admin, show coming soon page
-  if (comingSoonEnabled && profile?.role !== 'admin') {
+  // BUT allow auth routes to pass through
+  if (comingSoonEnabled && profile?.role !== 'admin' && !isAuthRoute) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-600 to-secondary-600">
         <div className="max-w-2xl px-6 py-12 text-center text-white">
