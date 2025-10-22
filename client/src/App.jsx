@@ -34,13 +34,15 @@ import ProfileSettings from './pages/ProfileSettings'
 function AppShell() {
   const location = useLocation()
 
-  // Check if current route is dashboard (admin area)
+  // Check if current route is dashboard (admin area) or auth page
   const isDashboardRoute = location.pathname.startsWith('/dashboard')
+  const isAuthRoute = location.pathname.startsWith('/auth/')
 
   return (
     <>
       <div className="min-h-screen bg-secondary-50 flex flex-col">
-        <Navbar />
+        {/* Hide navbar on auth pages */}
+        {!isAuthRoute && <Navbar />}
 
         <main className="container mx-auto px-4 py-8 max-w-6xl flex-1">
           
