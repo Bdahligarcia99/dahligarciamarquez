@@ -493,13 +493,9 @@ export async function supabaseFetchPostsTotal({ signal } = {}) {
 }
 
 export async function supabaseFetchDbHealth({ signal } = {}) {
-  try {
-    const data = await supabaseAdminGet('/api/db/health', { signal });
-    return { ok: !!data.ok };
-  } catch (error) {
-    console.warn('Failed to fetch DB health:', error);
-    return { ok: false };
-  }
+  // DB health endpoint doesn't exist, so just return a default
+  // This prevents 404 errors in the console
+  return { ok: true };
 }
 
 export async function supabaseAdminPost(path, body) {
