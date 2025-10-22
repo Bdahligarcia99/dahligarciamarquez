@@ -16,13 +16,15 @@ const BlogPost = () => {
       try {
         setLoading(true)
         const data = await postsAPI.getPostBySlug(slug)
-        setPost(data)
+        // Handle API response format: { post: {...} }
+        const postData = data?.post || data
+        setPost(postData)
         setError(null)
         
         // Set page metadata when post is loaded
-        if (data) {
-          setDocumentTitle(data.title)
-          setMetaDescription(data.excerpt || `Read "${data.title}" and more stories on dahligarciamarquez`)
+        if (postData) {
+          setDocumentTitle(postData.title)
+          setMetaDescription(postData.excerpt || `Read "${postData.title}" and more stories on dahligarciamarquez`)
         }
       } catch (err) {
         console.error('Failed to fetch post:', err)
@@ -82,11 +84,11 @@ const BlogPost = () => {
       </div>
 
       {/* Featured Image */}
-      {post.image_url && (
+      {post.cover_image_url && (
         <div className="mb-8 rounded-lg overflow-hidden">
           <img 
-            src={post.image_url} 
-            alt={post.title}
+            src={post.cover_image_url} 
+            alt={post.cover_image_alt || post.title}
             className="w-full h-64 md:h-80 object-cover"
           />
         </div>
@@ -104,16 +106,16 @@ const BlogPost = () => {
             {formatDate(post.created_at)}
           </time>
           
-          {post.tags && post.tags.length > 0 && (
+          {post.post_labels && post.post_labels.length > 0 && (
             <>
               <span className="text-secondary-300">•</span>
               <div className="flex flex-wrap gap-2">
-                {post.tags.map((tag, index) => (
+                {post.post_labels.map((labelObj, index) => (
                   <span 
                     key={index}
                     className="inline-block px-2 py-1 text-xs font-medium bg-primary-50 text-primary-700 rounded-full"
                   >
-                    {tag}
+                    {labelObj.labels?.name || 'Label'}
                   </span>
                 ))}
               </div>
@@ -130,9 +132,9 @@ const BlogPost = () => {
       </header>
 
       {/* Content */}
-      <div className="prose-custom">
+      <div className="prose prose-lg max-w-none">
         <div 
-          dangerouslySetInnerHTML={{ __html: post.content }} 
+          dangerouslySetInnerHTML={{ __html: post.content_html || post.content_text || '' }} 
           className="leading-relaxed"
         />
       </div>

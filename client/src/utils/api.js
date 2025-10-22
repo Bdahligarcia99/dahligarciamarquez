@@ -25,7 +25,7 @@ export const postsAPI = {
   // Get single post by slug
   getPostBySlug: async (slug) => {
     try {
-      const response = await api.get(`/posts/${slug}`)
+      const response = await api.get(`/posts/slug/${slug}`)
       return response.data
     } catch (error) {
       console.error('Error fetching post:', error)

@@ -152,7 +152,58 @@ router.get('/admin', requireSupabaseAdmin, async (req: AuthenticatedRequest, res
   }
 })
 
-// GET /api/posts/:id - Get single post (published or own draft)
+// GET /api/posts/slug/:slug - Get single post by slug (public - published only)
+router.get('/slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params
+    
+    const { data, error } = await supabaseAdmin
+      .from('posts')
+      .select(`
+        id,
+        title,
+        slug,
+        content_rich,
+        content_text,
+        content_html,
+        reading_time,
+        excerpt,
+        cover_image_url,
+        cover_image_alt,
+        status,
+        created_at,
+        updated_at,
+        profiles!posts_author_id_fkey (
+          id,
+          display_name
+        ),
+        post_labels (
+          labels (
+            id,
+            name,
+            slug
+          )
+        )
+      `)
+      .eq('slug', slug)
+      .eq('status', 'published')
+      .single()
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(HTTP_STATUS.NOT_FOUND).json(createErrorResponse('Post not found'))
+      }
+      throw error
+    }
+    
+    res.json(createSingleResponse('post', data))
+  } catch (error) {
+    console.error('Error fetching post by slug:', error)
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to fetch post'))
+  }
+})
+
+// GET /api/posts/:id - Get single post by ID (published or own draft)
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
