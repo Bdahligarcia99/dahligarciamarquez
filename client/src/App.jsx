@@ -12,6 +12,8 @@ import Footer from './components/Footer'
 import Home from './pages/Home'
 import BlogList from './pages/BlogList'
 import BlogPost from './pages/BlogPost'
+import About from './pages/About'
+import Contact from './pages/Contact'
 import StoriesPage from './pages/StoriesPage'
 import StoryDetail from './pages/StoryDetail'
 import NotFound from './components/NotFound'
@@ -58,6 +60,8 @@ function AppShell() {
             />
             <Route path="/blog" element={<BlogList />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/stories" element={<StoriesPage />} />
             <Route path="/stories/:slug" element={<StoryDetail />} />
             

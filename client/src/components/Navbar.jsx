@@ -51,8 +51,9 @@ export default function Navbar() {
 
         <nav className="links-desktop" aria-label="Primary">
           <NavLink to="/" className="link">Home</NavLink>
-          <NavLink to="/stories" className="link">Stories</NavLink>
           <NavLink to="/blog" className="link">Blog</NavLink>
+          <NavLink to="/about" className="link">About</NavLink>
+          <NavLink to="/contact" className="link">Contact</NavLink>
           {isAdmin && <NavLink to="/dashboard" className="link">Dashboard</NavLink>}
         </nav>
 
@@ -77,8 +78,9 @@ export default function Navbar() {
         aria-label="Primary"
       >
         <NavLink to="/" className="panel-link" onClick={onNav}>Home</NavLink>
-        <NavLink to="/stories" className="panel-link" onClick={onNav}>Stories</NavLink>
         <NavLink to="/blog" className="panel-link" onClick={onNav}>Blog</NavLink>
+        <NavLink to="/about" className="panel-link" onClick={onNav}>About</NavLink>
+        <NavLink to="/contact" className="panel-link" onClick={onNav}>Contact</NavLink>
         {isAdmin && <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>}
         {user ? (
           <span className="panel-link" style={{ cursor: 'default', color: '#6b7280' }}>
