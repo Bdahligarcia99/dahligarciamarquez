@@ -5,6 +5,7 @@ import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const Home = () => {
   const [scrollProgress, setScrollProgress] = useState(0)
+  const [whiteScrollTop, setWhiteScrollTop] = useState(0)
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -86,12 +87,16 @@ const Home = () => {
 
   return (
     <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
-      {/* Fixed Banner at Top - Never moves */}
+      {/* Fixed Banner at Top - Container stays fixed, image pans */}
       <div className="fixed top-0 left-0 right-0 w-full h-screen overflow-hidden z-0">
         <img 
           src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2000&h=1200&fit=crop" 
           alt="Mountain landscape at sunrise"
-          className="w-full h-full object-cover"
+          className="w-full object-cover"
+          style={{
+            height: '150vh',
+            transform: `translateY(-${whiteScrollTop}px)`
+          }}
           loading="eager"
         />
       </div>
@@ -132,6 +137,7 @@ const Home = () => {
       <div 
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-y-auto"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
+        onScroll={(e) => setWhiteScrollTop(e.target.scrollTop)}
       >
         {/* All content flows together, button sticks at top when scrolled */}
         <div className="pt-80 px-4">
