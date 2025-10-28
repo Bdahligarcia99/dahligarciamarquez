@@ -133,14 +133,16 @@ const Home = () => {
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-y-auto"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
       >
-        {/* Sticky button container at top of white section */}
-        <div className="sticky top-0 bg-white z-20 pt-16 pb-8 flex justify-center">
-          <Link 
-            to="/blog" 
-            className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
-          >
-            Explore Stories
-          </Link>
+        {/* Button starts lower but sticks close to top when scrolled */}
+        <div className="pt-80">
+          <div className="sticky top-6 bg-white z-20 pb-8 flex justify-center">
+            <Link 
+              to="/blog" 
+              className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
+            >
+              Explore Stories
+            </Link>
+          </div>
         </div>
         
         {/* Scrollable content below button */}
