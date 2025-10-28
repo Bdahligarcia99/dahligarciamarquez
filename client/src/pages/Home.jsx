@@ -28,13 +28,13 @@ const Home = () => {
   // Content moves up together (conveyor belt effect)
   const contentTranslateY = -scrollProgress
   
-  // Title starts at 400px, fades out first as it reaches top
+  // Title starts at 400px, stays visible until near top, then fades
   const titleY = 400 + contentTranslateY
-  const titleOpacity = titleY > 0 ? Math.max(0, Math.min(titleY / 400, 1)) : 0
+  const titleOpacity = titleY > 150 ? 1 : (titleY > 0 ? titleY / 150 : 0)
   
-  // Description is right below title (minimal spacing), fades out second
+  // Description is right below title (minimal spacing), fades when it reaches top
   const descY = 500 + contentTranslateY
-  const descOpacity = descY > 0 ? Math.max(0, Math.min(descY / 500, 1)) : 0
+  const descOpacity = descY > 150 ? 1 : (descY > 0 ? descY / 150 : 0)
 
   return (
     <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
