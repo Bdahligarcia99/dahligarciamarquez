@@ -22,20 +22,19 @@ const Home = () => {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // White section grows from 0 to 50vh (0 to 500px)
-  const whiteHeight = Math.min(scrollProgress / 10, 50)
+  // White section grows from 0 to 75vh (reaches 75% at scroll 750)
+  const whiteHeight = Math.min(scrollProgress / 10, 75)
   
   // Content moves up together (conveyor belt effect)
   const contentTranslateY = -scrollProgress
   
-  // Calculate fade based on element position relative to viewport center
-  // Title starts higher, so fades first
-  const titleY = 400 + contentTranslateY // Title initial position
-  const titleOpacity = titleY > 0 ? Math.max(0, Math.min(titleY / 300, 1)) : 0
+  // Title starts at 400px, fades out first as it reaches top
+  const titleY = 400 + contentTranslateY
+  const titleOpacity = titleY > 0 ? Math.max(0, Math.min(titleY / 400, 1)) : 0
   
-  // Description is 300px below title
-  const descY = 700 + contentTranslateY // Description initial position (300px spacing)
-  const descOpacity = descY > 0 ? Math.max(0, Math.min(descY / 300, 1)) : 0
+  // Description is right below title (minimal spacing), fades out second
+  const descY = 500 + contentTranslateY
+  const descOpacity = descY > 0 ? Math.max(0, Math.min(descY / 500, 1)) : 0
 
   return (
     <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
@@ -66,9 +65,6 @@ const Home = () => {
             Welcome to {SITE_NAME}
           </h1>
           
-          {/* Large spacing between title and description */}
-          <div style={{ height: '300px' }}></div>
-          
           {/* Description - Fades based on position */}
           <p 
             className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg transition-opacity duration-300 max-w-2xl mx-auto"
@@ -82,7 +78,7 @@ const Home = () => {
         </div>
       </div>
 
-      {/* White section that grows to cover 50% of banner */}
+      {/* White section that grows to cover 75% of banner */}
       <div 
         className="fixed bottom-0 left-0 right-0 bg-white z-10 transition-all duration-300 ease-out overflow-hidden"
         style={{ height: `${whiteHeight}vh` }}
