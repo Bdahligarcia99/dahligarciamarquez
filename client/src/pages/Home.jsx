@@ -5,7 +5,9 @@ import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const Home = () => {
   const [scrollProgress, setScrollProgress] = useState(0)
+  const [whiteScrollTop, setWhiteScrollTop] = useState(0)
   const containerRef = useRef(null)
+  const whiteSectionRef = useRef(null)
 
   useEffect(() => {
     setDocumentTitle()
@@ -34,6 +36,11 @@ const Home = () => {
 
   // White section grows from 0 to 66.67vh (reaches 2/3 at scroll 667)
   const whiteHeight = Math.min(scrollProgress / 10, 66.67)
+  
+  // Button position: starts at 320px, scrolls up with content, stops at 48px from top
+  const BUTTON_START_POS = 320
+  const BUTTON_LOCK_POS = 48
+  const buttonTopPosition = Math.max(BUTTON_LOCK_POS, BUTTON_START_POS - whiteScrollTop)
   
   // Scroll thresholds for staged fade effect
   const TITLE_LOCK_SCROLL = 300      // Title reaches top and locks
@@ -130,12 +137,17 @@ const Home = () => {
 
       {/* White section that grows to cover 2/3 of banner */}
       <div 
+        ref={whiteSectionRef}
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-y-auto"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
+        onScroll={(e) => setWhiteScrollTop(e.target.scrollTop)}
       >
-        {/* Button starts lower but sticks with spacing from banner */}
-        <div className="pt-80">
-          <div className="sticky top-12 bg-white z-20 pb-8 flex justify-center">
+        {/* Button with controlled position - scrolls up and locks */}
+        <div className="relative" style={{ height: `${BUTTON_START_POS + 100}px` }}>
+          <div 
+            className="absolute left-0 right-0 bg-white z-20 pb-8 flex justify-center"
+            style={{ top: `${buttonTopPosition}px` }}
+          >
             <Link 
               to="/blog" 
               className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
