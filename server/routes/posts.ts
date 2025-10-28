@@ -207,6 +207,7 @@ router.get('/slug/:slug', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
+    console.log(`📖 GET /api/posts/${id} - Fetching post`)
     
     const { data, error } = await supabaseAdmin
       .from('posts')
@@ -220,9 +221,11 @@ router.get('/:id', async (req, res) => {
         reading_time,
         excerpt,
         cover_image_url,
+        cover_image_alt,
         status,
         created_at,
         updated_at,
+        author_id,
         profiles!posts_author_id_fkey (
           id,
           display_name
@@ -237,6 +240,14 @@ router.get('/:id', async (req, res) => {
       `)
       .eq('id', id)
       .single()
+    
+    console.log(`📊 GET /api/posts/${id} result:`, {
+      success: !error,
+      hasData: !!data,
+      dataKeys: data ? Object.keys(data) : [],
+      title: data?.title,
+      error: error?.message
+    })
     
     if (error) {
       if (error.code === 'PGRST116') {
