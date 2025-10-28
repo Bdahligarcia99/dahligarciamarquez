@@ -5,9 +5,7 @@ import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const Home = () => {
   const [scrollProgress, setScrollProgress] = useState(0)
-  const [whiteScrollTop, setWhiteScrollTop] = useState(0)
   const containerRef = useRef(null)
-  const whiteSectionRef = useRef(null)
 
   useEffect(() => {
     setDocumentTitle()
@@ -36,11 +34,6 @@ const Home = () => {
 
   // White section grows from 0 to 66.67vh (reaches 2/3 at scroll 667)
   const whiteHeight = Math.min(scrollProgress / 10, 66.67)
-  
-  // Button position: starts at 320px, scrolls up with content, stops at 48px from top
-  const BUTTON_START_POS = 320
-  const BUTTON_LOCK_POS = 48
-  const buttonTopPosition = Math.max(BUTTON_LOCK_POS, BUTTON_START_POS - whiteScrollTop)
   
   // Scroll thresholds for staged fade effect
   const TITLE_LOCK_SCROLL = 300      // Title reaches top and locks
@@ -137,17 +130,13 @@ const Home = () => {
 
       {/* White section that grows to cover 2/3 of banner */}
       <div 
-        ref={whiteSectionRef}
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-y-auto"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
-        onScroll={(e) => setWhiteScrollTop(e.target.scrollTop)}
       >
-        {/* Button with controlled position - scrolls up and locks */}
-        <div className="relative" style={{ height: `${BUTTON_START_POS + 100}px` }}>
-          <div 
-            className="absolute left-0 right-0 bg-white z-20 pb-8 flex justify-center"
-            style={{ top: `${buttonTopPosition}px` }}
-          >
+        {/* All content flows together, button sticks at top when scrolled */}
+        <div className="pt-80 px-4">
+          {/* Button - sticky at 48px from top */}
+          <div className="sticky top-12 bg-white z-20 py-8 flex justify-center">
             <Link 
               to="/blog" 
               className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
@@ -155,10 +144,9 @@ const Home = () => {
               Explore Stories
             </Link>
           </div>
-        </div>
-        
-        {/* Scrollable content below button */}
-        <div className="max-w-4xl mx-auto px-4 pb-16">
+          
+          {/* Content below button - scrolls and bumps into button */}
+          <div className="max-w-4xl mx-auto pb-16">
             <div className="grid md:grid-cols-3 gap-8 py-16">
               <div className="text-center">
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -218,6 +206,7 @@ const Home = () => {
                 Browse All Stories
               </Link>
             </div>
+          </div>
         </div>
       </div>
     </div>
