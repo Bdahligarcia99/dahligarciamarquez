@@ -130,21 +130,21 @@ const Home = () => {
 
       {/* White section that grows to cover 2/3 of banner */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-hidden"
+        className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-y-auto"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
       >
-        {/* Content container - centered */}
-        <div className="h-full flex flex-col items-center justify-start pt-16 overflow-y-auto">
-          {/* Explore Stories Button - Always stays in white section */}
+        {/* Sticky button container at top of white section */}
+        <div className="sticky top-0 bg-white z-20 pt-16 pb-8 flex justify-center">
           <Link 
             to="/blog" 
-            className="btn-primary text-lg px-8 py-3 inline-block mb-16 pointer-events-auto"
+            className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
           >
             Explore Stories
           </Link>
-          
-          {/* Features Section */}
-          <div className="max-w-4xl mx-auto px-4">
+        </div>
+        
+        {/* Scrollable content below button */}
+        <div className="max-w-4xl mx-auto px-4 pb-16">
             <div className="grid md:grid-cols-3 gap-8 py-16">
               <div className="text-center">
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -204,7 +204,6 @@ const Home = () => {
                 Browse All Stories
               </Link>
             </div>
-          </div>
         </div>
       </div>
     </div>
