@@ -25,16 +25,54 @@ const Home = () => {
   // White section grows from 0 to 75vh (reaches 75% at scroll 750)
   const whiteHeight = Math.min(scrollProgress / 10, 75)
   
-  // Content moves up together (conveyor belt effect)
-  const contentTranslateY = -scrollProgress
+  // Scroll thresholds for staged fade effect
+  const TITLE_LOCK_SCROLL = 300      // Title reaches top and locks
+  const TITLE_FADE_END = 450         // Title fully faded
+  const DESC_LOCK_SCROLL = 550       // Description reaches top and locks
+  const DESC_FADE_END = 700          // Description fully faded
   
-  // Title starts at 400px, stays visible until near top, then fades
-  const titleY = 400 + contentTranslateY
-  const titleOpacity = titleY > 150 ? 1 : (titleY > 0 ? titleY / 150 : 0)
+  // Title: scrolls up → locks at top → fades while locked
+  let titleY, titleOpacity
+  if (scrollProgress < TITLE_LOCK_SCROLL) {
+    // Title moving up normally
+    titleY = 400 - scrollProgress
+    titleOpacity = 1
+  } else if (scrollProgress < TITLE_FADE_END) {
+    // Title locked at top, fading
+    titleY = 100
+    const fadeProgress = (scrollProgress - TITLE_LOCK_SCROLL) / (TITLE_FADE_END - TITLE_LOCK_SCROLL)
+    titleOpacity = 1 - fadeProgress
+  } else {
+    // Title gone
+    titleY = 100
+    titleOpacity = 0
+  }
   
-  // Description is right below title (minimal spacing), fades when it reaches top
-  const descY = 500 + contentTranslateY
-  const descOpacity = descY > 150 ? 1 : (descY > 0 ? descY / 150 : 0)
+  // Description: scrolls → pauses while title fades → resumes → locks → fades
+  let descY, descOpacity
+  if (scrollProgress < TITLE_LOCK_SCROLL) {
+    // Description moving up with title
+    descY = 500 - scrollProgress
+    descOpacity = 1
+  } else if (scrollProgress < TITLE_FADE_END) {
+    // Description paused (waiting for title to fade)
+    descY = 500 - TITLE_LOCK_SCROLL
+    descOpacity = 1
+  } else if (scrollProgress < DESC_LOCK_SCROLL) {
+    // Description resuming movement to top
+    const resumeProgress = scrollProgress - TITLE_FADE_END
+    descY = (500 - TITLE_LOCK_SCROLL) - resumeProgress
+    descOpacity = 1
+  } else if (scrollProgress < DESC_FADE_END) {
+    // Description locked at top, fading
+    descY = 100
+    const fadeProgress = (scrollProgress - DESC_LOCK_SCROLL) / (DESC_FADE_END - DESC_LOCK_SCROLL)
+    descOpacity = 1 - fadeProgress
+  } else {
+    // Description gone
+    descY = 100
+    descOpacity = 0
+  }
 
   return (
     <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
@@ -48,33 +86,35 @@ const Home = () => {
         />
       </div>
 
-      {/* Scrolling Content Container - Conveyor belt effect */}
-      <div 
-        className="fixed inset-0 z-20 pointer-events-none"
-        style={{ transform: `translateY(${contentTranslateY}px)` }}
-      >
+      {/* Text elements with individual positioning */}
+      <div className="fixed inset-0 z-20 pointer-events-none">
         <div className="text-center px-4 max-w-4xl mx-auto">
-          {/* Title - Fades based on position */}
-          <h1 
-            className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl"
-            style={{ 
-              marginTop: '400px',
-              opacity: titleOpacity
-            }}
-          >
-            Welcome to {SITE_NAME}
-          </h1>
+          {/* Title - Individual position control */}
+          {titleOpacity > 0 && (
+            <h1 
+              className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl absolute left-0 right-0"
+              style={{ 
+                top: `${titleY}px`,
+                opacity: titleOpacity
+              }}
+            >
+              Welcome to {SITE_NAME}
+            </h1>
+          )}
           
-          {/* Description - Fades based on position */}
-          <p 
-            className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg max-w-2xl mx-auto"
-            style={{ 
-              opacity: descOpacity
-            }}
-          >
-            A personal collection of thoughts, experiences, and stories from my journey. 
-            Dive into tales that inspire, challenge, and connect us all.
-          </p>
+          {/* Description - Individual position control */}
+          {descOpacity > 0 && (
+            <p 
+              className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg max-w-2xl mx-auto absolute left-0 right-0 px-4"
+              style={{ 
+                top: `${descY}px`,
+                opacity: descOpacity
+              }}
+            >
+              A personal collection of thoughts, experiences, and stories from my journey. 
+              Dive into tales that inspire, challenge, and connect us all.
+            </p>
+          )}
         </div>
       </div>
 
