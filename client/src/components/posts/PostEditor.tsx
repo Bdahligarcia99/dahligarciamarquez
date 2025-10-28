@@ -935,6 +935,19 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             </button>
           </div>
         </div>
+
+        {/* Bottom notifications - so you don't have to scroll up */}
+        {error && (
+          <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+            {successMessage}
+          </div>
+        )}
       </form>
     </div>
   )
@@ -942,22 +955,6 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   // Main render logic - choose between view and edit modes
   return (
     <>
-      {error && (
-        <div className="max-w-4xl mx-auto p-6">
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="max-w-4xl mx-auto p-6">
-          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-            {successMessage}
-          </div>
-        </div>
-      )}
-
       {renderEditMode()}
 
       {/* Image Management Panel */}
