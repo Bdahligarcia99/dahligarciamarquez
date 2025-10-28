@@ -14,9 +14,10 @@ interface Label {
 interface Post {
   id: string
   title: string
-  content: string
-  content_html?: string
-  excerpt: string
+  content?: string // Fallback for old posts
+  content_html?: string // Primary content field
+  content_text?: string
+  excerpt?: string
   cover_image_url?: string
   cover_image_alt?: string
   status: 'draft' | 'published' | 'archived'
@@ -37,7 +38,8 @@ export default function PostPreview() {
 
       try {
         setLoading(true)
-        const data = await supabaseAdminGet(`/api/posts/${id}`)
+        const response = await supabaseAdminGet(`/api/posts/${id}`)
+        const data = response.post || response // Extract post from wrapped response
         setPost(data)
         setError(null)
         
