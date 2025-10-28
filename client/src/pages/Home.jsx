@@ -14,10 +14,7 @@ const Home = () => {
     const handleScroll = () => {
       if (containerRef.current) {
         const scrolled = window.scrollY
-        // Max scroll is 2000px - this gives us good spacing between states
-        const maxScroll = 2000
-        const progress = Math.min(scrolled / maxScroll, 1)
-        setScrollProgress(progress)
+        setScrollProgress(scrolled)
       }
     }
 
@@ -25,19 +22,20 @@ const Home = () => {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Calculate individual element states based on scroll progress
-  // White section grows from 0 to 50vh (0 to 0.2 progress)
-  const whiteHeight = Math.min(scrollProgress * 2.5, 0.5) * 100
+  // White section grows from 0 to 50vh (0 to 500px)
+  const whiteHeight = Math.min(scrollProgress / 10, 50)
   
-  // Title: moves up and fades (0.2 to 0.4 progress)
-  const titleProgress = Math.max(0, Math.min((scrollProgress - 0.2) / 0.2, 1))
-  const titleTranslateY = -titleProgress * 150 // Move up 150px
-  const titleOpacity = 1 - titleProgress
+  // Content moves up together (conveyor belt effect)
+  const contentTranslateY = -scrollProgress
   
-  // Description: moves up and fades (0.4 to 0.6 progress)
-  const descProgress = Math.max(0, Math.min((scrollProgress - 0.4) / 0.2, 1))
-  const descTranslateY = -descProgress * 150
-  const descOpacity = 1 - descProgress
+  // Calculate fade based on element position relative to viewport center
+  // Title starts higher, so fades first
+  const titleY = 400 + contentTranslateY // Title initial position
+  const titleOpacity = titleY > 0 ? Math.max(0, Math.min(titleY / 300, 1)) : 0
+  
+  // Description is 300px below title
+  const descY = 700 + contentTranslateY // Description initial position (300px spacing)
+  const descOpacity = descY > 0 ? Math.max(0, Math.min(descY / 300, 1)) : 0
 
   return (
     <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
@@ -51,25 +49,30 @@ const Home = () => {
         />
       </div>
 
-      {/* Floating Text Elements - Move and fade over banner */}
-      <div className="fixed inset-0 z-20 pointer-events-none flex items-center justify-center">
-        <div className="text-center px-4 max-w-4xl">
-          {/* Title - Fades first */}
+      {/* Scrolling Content Container - Conveyor belt effect */}
+      <div 
+        className="fixed inset-0 z-20 pointer-events-none"
+        style={{ transform: `translateY(${contentTranslateY}px)` }}
+      >
+        <div className="text-center px-4 max-w-4xl mx-auto">
+          {/* Title - Fades based on position */}
           <h1 
-            className="text-5xl md:text-7xl font-serif font-bold text-white mb-6 drop-shadow-2xl transition-all duration-300"
+            className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl transition-opacity duration-300"
             style={{ 
-              transform: `translateY(${titleTranslateY}px)`,
+              marginTop: '400px',
               opacity: titleOpacity
             }}
           >
             Welcome to {SITE_NAME}
           </h1>
           
-          {/* Description - Fades second */}
+          {/* Large spacing between title and description */}
+          <div style={{ height: '300px' }}></div>
+          
+          {/* Description - Fades based on position */}
           <p 
-            className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg transition-all duration-300"
+            className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg transition-opacity duration-300 max-w-2xl mx-auto"
             style={{ 
-              transform: `translateY(${descTranslateY}px)`,
               opacity: descOpacity
             }}
           >
