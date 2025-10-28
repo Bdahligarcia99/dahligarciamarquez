@@ -1,7 +1,7 @@
 // client/src/features/dashboard/PostsPage.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabaseAdminGet, supabaseAdminDelete } from '../../lib/api'
+import { supabaseAdminGet, supabaseAdminDelete, supabaseAdminPatch } from '../../lib/api'
 import { isHTTPError } from '../../lib/httpErrors'
 import PostFormModal from './components/PostFormModal'
 import StatusBadge from './components/StatusBadge'
@@ -17,6 +17,7 @@ const PostsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPost, setEditingPost] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [updatingStatusId, setUpdatingStatusId] = useState(null)
 
   useEffect(() => {
     fetchPosts()
@@ -76,6 +77,26 @@ const PostsPage = () => {
       alert(`Failed to delete post: ${err.message}`)
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleStatusChange = async (postId, newStatus) => {
+    try {
+      setUpdatingStatusId(postId)
+      
+      // Update via API
+      const response = await supabaseAdminPatch(`/api/posts/${postId}`, { status: newStatus })
+      const updatedPost = response.post || response
+      
+      // Optimistic update
+      setPosts(prev => prev.map(post => 
+        post.id === postId ? { ...post, status: newStatus } : post
+      ))
+    } catch (err) {
+      console.error('Failed to update status:', err)
+      alert(`Failed to update status: ${err.message}`)
+    } finally {
+      setUpdatingStatusId(null)
     }
   }
 
@@ -194,7 +215,22 @@ const PostsPage = () => {
                       {new Date(post.created_at).toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
-                      <StatusBadge status="success" label={post.status || 'published'} />
+                      <select
+                        value={post.status || 'draft'}
+                        onChange={(e) => handleStatusChange(post.id, e.target.value)}
+                        disabled={updatingStatusId === post.id}
+                        className={`px-3 py-1 border rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          post.status === 'published' 
+                            ? 'bg-green-50 text-green-700 border-green-200' 
+                            : post.status === 'draft'
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        } ${updatingStatusId === post.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                        <option value="archived">Archived</option>
+                      </select>
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button
