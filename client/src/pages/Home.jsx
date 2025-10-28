@@ -32,8 +32,8 @@ const Home = () => {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // White section grows from 0 to 75vh (reaches 75% at scroll 750)
-  const whiteHeight = Math.min(scrollProgress / 10, 75)
+  // White section grows from 0 to 66.67vh (reaches 2/3 at scroll 667)
+  const whiteHeight = Math.min(scrollProgress / 10, 66.67)
   
   // Scroll thresholds for staged fade effect
   const TITLE_LOCK_SCROLL = 300      // Title reaches top and locks
@@ -128,7 +128,7 @@ const Home = () => {
         </div>
       </div>
 
-      {/* White section that grows to cover 75% of banner */}
+      {/* White section that grows to cover 2/3 of banner */}
       <div 
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-hidden"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
