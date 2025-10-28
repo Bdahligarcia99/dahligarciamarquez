@@ -11,14 +11,24 @@ const Home = () => {
     setDocumentTitle()
     setMetaDescription(`Personal stories and experiences from ${SITE_NAME}. Dive into tales that inspire, challenge, and connect us all.`)
 
+    let ticking = false
+    
     const handleScroll = () => {
-      if (containerRef.current) {
-        const scrolled = window.scrollY
-        setScrollProgress(scrolled)
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (containerRef.current) {
+            setScrollProgress(window.scrollY)
+          }
+          ticking = false
+        })
+        ticking = true
       }
     }
 
-    window.addEventListener('scroll', handleScroll)
+    // Set initial value
+    setScrollProgress(window.scrollY)
+    
+    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
@@ -121,7 +131,7 @@ const Home = () => {
       {/* White section that grows to cover 75% of banner */}
       <div 
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-hidden"
-        style={{ height: `${whiteHeight}vh` }}
+        style={{ height: `${whiteHeight}vh`, transition: 'none' }}
       >
         {/* Content container - centered */}
         <div className="h-full flex flex-col items-center justify-start pt-16 overflow-y-auto">
