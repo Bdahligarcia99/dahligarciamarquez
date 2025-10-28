@@ -412,6 +412,8 @@ router.post('/', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) =>
 const updatePostHandler = async (req: AuthenticatedRequest, res: any) => {
   try {
     const { id } = req.params
+    console.log(`🔄 PATCH/PUT /api/posts/${id} received`)
+    console.log(`📦 Request body keys:`, Object.keys(req.body))
     const { 
       title, 
       content_rich, 
@@ -524,12 +526,14 @@ const updatePostHandler = async (req: AuthenticatedRequest, res: any) => {
     }
     
     // Update the post
+    console.log(`📝 Updating post ${id} with:`, JSON.stringify(updates, null, 2))
     const { data: updatedPost, error: updateError } = await supabaseAdmin
       .from('posts')
       .update(updates)
       .eq('id', id)
       .select('id, title, slug, status, updated_at')
       .single()
+    console.log(`✅ Update result:`, { updatedPost, error: updateError })
     
     if (updateError) {
       if (updateError.code === '23505') { // Unique constraint violation
