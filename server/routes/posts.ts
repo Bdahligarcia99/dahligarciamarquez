@@ -271,7 +271,8 @@ router.post('/', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) =>
       content_rich, 
       content_html,
       excerpt, 
-      cover_image_url, 
+      cover_image_url,
+      cover_image_alt, 
       status = 'draft', 
       label_ids = [],
       slug: providedSlug
@@ -366,6 +367,7 @@ router.post('/', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) =>
       reading_time: Math.max(1, readingTime), // Ensure minimum 1 minute
       excerpt: excerpt?.trim() || null,
       cover_image_url: cover_image_url || null,
+      cover_image_alt: cover_image_alt?.trim() || null,
       status,
       author_id: authorId
     }
@@ -430,7 +432,8 @@ const updatePostHandler = async (req: AuthenticatedRequest, res: any) => {
       content_rich, 
       content_html,
       excerpt, 
-      cover_image_url, 
+      cover_image_url,
+      cover_image_alt, 
       status, 
       label_ids,
       regenerateSlug = false 
@@ -517,6 +520,10 @@ const updatePostHandler = async (req: AuthenticatedRequest, res: any) => {
     
     if (cover_image_url !== undefined) {
       updates.cover_image_url = cover_image_url || null
+    }
+    
+    if (cover_image_alt !== undefined) {
+      updates.cover_image_alt = cover_image_alt?.trim() || null
     }
     
     if (status !== undefined) {
