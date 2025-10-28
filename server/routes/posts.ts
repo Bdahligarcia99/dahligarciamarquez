@@ -408,7 +408,8 @@ router.post('/', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) =>
 })
 
 // PUT /api/posts/:id - Update post (admin token or author)
-router.put('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
+// PATCH /api/posts/:id - Update post (admin token or author) - same as PUT
+const updatePostHandler = async (req: AuthenticatedRequest, res: any) => {
   try {
     const { id } = req.params
     const { 
@@ -581,7 +582,11 @@ router.put('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) 
     console.error('Error updating post:', error)
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(createErrorResponse('Failed to update post'))
   }
-})
+}
+
+// Register both PUT and PATCH to the same handler
+router.put('/:id', requireSupabaseAdmin, updatePostHandler)
+router.patch('/:id', requireSupabaseAdmin, updatePostHandler)
 
 // DELETE /api/posts/:id - Delete post (admin token or author)
 router.delete('/:id', requireSupabaseAdmin, async (req: AuthenticatedRequest, res) => {
