@@ -11,33 +11,45 @@ const Home = () => {
 
   return (
     <div className="max-w-full">
-      {/* Banner Image */}
-      <div className="w-full h-64 md:h-96 overflow-hidden mb-12">
+      {/* Full-Page Hero Banner with Overlay Text */}
+      <div className="relative w-full h-screen overflow-hidden">
+        {/* Background Image */}
         <img 
-          src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&h=600&fit=crop" 
+          src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2000&h=1200&fit=crop" 
           alt="Mountain landscape at sunrise"
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
           loading="eager"
         />
+        
+        {/* Gradient Overlay for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>
+        
+        {/* Hero Text - Centered */}
+        <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4">
+          <h1 className="text-5xl md:text-7xl font-serif font-bold text-white mb-6 drop-shadow-2xl animate-fade-in">
+            Welcome to {SITE_NAME}
+          </h1>
+          <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed drop-shadow-lg animate-fade-in-delay">
+            A personal collection of thoughts, experiences, and stories from my journey. 
+            Dive into tales that inspire, challenge, and connect us all.
+          </p>
+          <Link 
+            to="/blog" 
+            className="btn-primary text-lg px-8 py-3 inline-block bg-white text-secondary-900 hover:bg-gray-100 transition-all transform hover:scale-105 shadow-2xl animate-fade-in-delay-2"
+          >
+            Explore Stories
+          </Link>
+        </div>
+        
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4">
-        {/* Hero Section */}
-        <div className="text-center py-16">
-          <h1 className="text-5xl font-serif font-bold text-secondary-900 mb-6">
-            Welcome to {SITE_NAME}
-          </h1>
-        <p className="text-xl text-secondary-600 mb-8 max-w-2xl mx-auto leading-relaxed">
-          A personal collection of thoughts, experiences, and stories from my journey. 
-          Dive into tales that inspire, challenge, and connect us all.
-        </p>
-        <Link 
-          to="/blog" 
-          className="btn-primary text-lg px-8 py-3 inline-block"
-        >
-          Explore Stories
-        </Link>
-      </div>
 
       {/* Features Section */}
       <div className="grid md:grid-cols-3 gap-8 py-16">
