@@ -56,7 +56,7 @@ const Home = () => {
         <div className="text-center px-4 max-w-4xl mx-auto">
           {/* Title - Fades based on position */}
           <h1 
-            className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl transition-opacity duration-300"
+            className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl"
             style={{ 
               marginTop: '400px',
               opacity: titleOpacity
@@ -67,7 +67,7 @@ const Home = () => {
           
           {/* Description - Fades based on position */}
           <p 
-            className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg transition-opacity duration-300 max-w-2xl mx-auto"
+            className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg max-w-2xl mx-auto"
             style={{ 
               opacity: descOpacity
             }}
@@ -80,7 +80,7 @@ const Home = () => {
 
       {/* White section that grows to cover 75% of banner */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-white z-10 transition-all duration-300 ease-out overflow-hidden"
+        className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-hidden"
         style={{ height: `${whiteHeight}vh` }}
       >
         {/* Content container - centered */}
