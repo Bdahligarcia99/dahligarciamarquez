@@ -135,8 +135,8 @@ const Home = () => {
       >
         {/* All content flows together, button sticks at top when scrolled */}
         <div className="pt-80 px-4">
-          {/* Button - sticky at 48px from top */}
-          <div className="sticky top-12 bg-white z-20 py-8 flex justify-center">
+          {/* Button - sticky at 16px from top (closer to banner) */}
+          <div className="sticky top-4 bg-white z-20 py-8 flex justify-center -mb-8">
             <Link 
               to="/blog" 
               className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
@@ -146,7 +146,7 @@ const Home = () => {
           </div>
           
           {/* Content below button - scrolls and bumps into button */}
-          <div className="max-w-4xl mx-auto pb-16">
+          <div className="max-w-4xl mx-auto pb-16 relative z-10">
             <div className="grid md:grid-cols-3 gap-8 py-16">
               <div className="text-center">
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
