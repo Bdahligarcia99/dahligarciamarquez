@@ -16,7 +16,7 @@ const About = () => {
           About
         </h1>
         <p className="text-xl text-secondary-600 max-w-2xl mx-auto">
-          Welcome to my corner of the internet
+          a place for the regurgitations of my neurodivergent mind
         </p>
       </header>
 
