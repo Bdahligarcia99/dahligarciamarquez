@@ -116,7 +116,8 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
 
     setLoading(true)
     try {
-      const post = await supabaseAdminGet(`/api/posts/${postId}`)
+      const response = await supabaseAdminGet(`/api/posts/${postId}`)
+      const post = response.post || response // Handle both wrapped and direct responses
       
       // Safe destructuring with defaults
       const {
