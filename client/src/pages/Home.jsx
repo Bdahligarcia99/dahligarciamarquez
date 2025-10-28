@@ -133,9 +133,9 @@ const Home = () => {
         className="fixed bottom-0 left-0 right-0 bg-white z-10 overflow-y-auto"
         style={{ height: `${whiteHeight}vh`, transition: 'none' }}
       >
-        {/* Button starts lower but sticks close to top when scrolled */}
+        {/* Button starts lower but sticks with spacing from banner */}
         <div className="pt-80">
-          <div className="sticky top-6 bg-white z-20 pb-8 flex justify-center">
+          <div className="sticky top-12 bg-white z-20 pb-8 flex justify-center">
             <Link 
               to="/blog" 
               className="btn-primary text-lg px-8 py-3 inline-block pointer-events-auto"
