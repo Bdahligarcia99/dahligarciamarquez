@@ -1,54 +1,98 @@
 import { Link } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { SITE_NAME } from '../config/branding'
 import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const Home = () => {
+  const [scrollProgress, setScrollProgress] = useState(0)
+  const containerRef = useRef(null)
+
   useEffect(() => {
     setDocumentTitle()
     setMetaDescription(`Personal stories and experiences from ${SITE_NAME}. Dive into tales that inspire, challenge, and connect us all.`)
+
+    const handleScroll = () => {
+      if (containerRef.current) {
+        const scrolled = window.scrollY
+        // Max scroll is 2000px - this gives us good spacing between states
+        const maxScroll = 2000
+        const progress = Math.min(scrolled / maxScroll, 1)
+        setScrollProgress(progress)
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Calculate individual element states based on scroll progress
+  // White section grows from 0 to 50vh (0 to 0.2 progress)
+  const whiteHeight = Math.min(scrollProgress * 2.5, 0.5) * 100
+  
+  // Title: moves up and fades (0.2 to 0.4 progress)
+  const titleProgress = Math.max(0, Math.min((scrollProgress - 0.2) / 0.2, 1))
+  const titleTranslateY = -titleProgress * 150 // Move up 150px
+  const titleOpacity = 1 - titleProgress
+  
+  // Description: moves up and fades (0.4 to 0.6 progress)
+  const descProgress = Math.max(0, Math.min((scrollProgress - 0.4) / 0.2, 1))
+  const descTranslateY = -descProgress * 150
+  const descOpacity = 1 - descProgress
+
   return (
-    <div className="max-w-full">
-      {/* Fixed Banner at Top - Stays in place while content scrolls */}
+    <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
+      {/* Fixed Banner at Top - Never moves */}
       <div className="fixed top-0 left-0 right-0 w-full h-screen overflow-hidden z-0">
-        {/* Background Image */}
         <img 
           src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2000&h=1200&fit=crop" 
           alt="Mountain landscape at sunrise"
           className="w-full h-full object-cover"
           loading="eager"
         />
-        
-        {/* Fade gradient at bottom for text fade effect */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none"></div>
       </div>
 
-      {/* Content that scrolls - starts below the banner */}
-      <div className="relative z-10">
-        {/* Spacer to push content below the banner */}
-        <div className="h-screen"></div>
-        
-        {/* Hero Text Section - Below banner, white background */}
-        <div className="bg-white">
-          <div className="max-w-4xl mx-auto px-4 py-16">
-            <div className="text-center">
-              <h1 className="text-5xl md:text-7xl font-serif font-bold text-secondary-900 mb-6">
-                Welcome to {SITE_NAME}
-              </h1>
-              <p className="text-xl md:text-2xl text-secondary-600 mb-8 max-w-2xl mx-auto leading-relaxed">
-                A personal collection of thoughts, experiences, and stories from my journey. 
-                Dive into tales that inspire, challenge, and connect us all.
-              </p>
-              <Link 
-                to="/blog" 
-                className="btn-primary text-lg px-8 py-3 inline-block"
-              >
-                Explore Stories
-              </Link>
-            </div>
-          </div>
+      {/* Floating Text Elements - Move and fade over banner */}
+      <div className="fixed inset-0 z-20 pointer-events-none flex items-center justify-center">
+        <div className="text-center px-4 max-w-4xl">
+          {/* Title - Fades first */}
+          <h1 
+            className="text-5xl md:text-7xl font-serif font-bold text-white mb-6 drop-shadow-2xl transition-all duration-300"
+            style={{ 
+              transform: `translateY(${titleTranslateY}px)`,
+              opacity: titleOpacity
+            }}
+          >
+            Welcome to {SITE_NAME}
+          </h1>
+          
+          {/* Description - Fades second */}
+          <p 
+            className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg transition-all duration-300"
+            style={{ 
+              transform: `translateY(${descTranslateY}px)`,
+              opacity: descOpacity
+            }}
+          >
+            A personal collection of thoughts, experiences, and stories from my journey. 
+            Dive into tales that inspire, challenge, and connect us all.
+          </p>
+        </div>
+      </div>
+
+      {/* White section that grows to cover 50% of banner */}
+      <div 
+        className="fixed bottom-0 left-0 right-0 bg-white z-10 transition-all duration-300 ease-out overflow-hidden"
+        style={{ height: `${whiteHeight}vh` }}
+      >
+        {/* Content container - centered */}
+        <div className="h-full flex flex-col items-center justify-start pt-16 overflow-y-auto">
+          {/* Explore Stories Button - Always stays in white section */}
+          <Link 
+            to="/blog" 
+            className="btn-primary text-lg px-8 py-3 inline-block mb-16 pointer-events-auto"
+          >
+            Explore Stories
+          </Link>
           
           {/* Features Section */}
           <div className="max-w-4xl mx-auto px-4">
