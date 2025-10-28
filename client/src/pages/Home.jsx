@@ -10,12 +10,23 @@ const Home = () => {
   }, [])
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Hero Section */}
-      <div className="text-center py-16">
-        <h1 className="text-5xl font-serif font-bold text-secondary-900 mb-6">
-          Welcome to {SITE_NAME}
-        </h1>
+    <div className="max-w-full">
+      {/* Banner Image */}
+      <div className="w-full h-64 md:h-96 overflow-hidden mb-12">
+        <img 
+          src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&h=600&fit=crop" 
+          alt="Mountain landscape at sunrise"
+          className="w-full h-full object-cover"
+          loading="eager"
+        />
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4">
+        {/* Hero Section */}
+        <div className="text-center py-16">
+          <h1 className="text-5xl font-serif font-bold text-secondary-900 mb-6">
+            Welcome to {SITE_NAME}
+          </h1>
         <p className="text-xl text-secondary-600 mb-8 max-w-2xl mx-auto leading-relaxed">
           A personal collection of thoughts, experiences, and stories from my journey. 
           Dive into tales that inspire, challenge, and connect us all.
@@ -87,6 +98,7 @@ const Home = () => {
         >
           Browse All Stories
         </Link>
+      </div>
       </div>
     </div>
   )
