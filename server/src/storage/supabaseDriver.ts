@@ -146,9 +146,14 @@ export class SupabaseStorageDriver implements StorageDriver {
       }
 
       // Clean up test file
-      await this.supabase.storage
+      const { error: removeError } = await this.supabase.storage
         .from(this.bucketName)
         .remove([testPath]);
+      
+      if (removeError) {
+        console.warn('Health check cleanup failed:', removeError.message);
+        // Still return success since upload worked - cleanup failure is not critical
+      }
 
       const projectId = this.extractProjectId(this.supabaseUrl);
       return { 

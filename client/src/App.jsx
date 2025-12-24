@@ -3,6 +3,7 @@ import { useState, Suspense, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import { CompressionProvider } from './hooks/useCompressionSettings'
+import { NavbarProvider } from './context/NavbarContext'
 import ConditionalAuthProvider from './components/ConditionalAuthProvider'
 import ComingSoonGuard from './components/ComingSoonGuard'
 import Posts from './features/posts/Posts'
@@ -114,11 +115,13 @@ function App() {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ConditionalAuthProvider>
-        <ComingSoonGuard>
-          <CompressionProvider>
-            <AppShell />
-          </CompressionProvider>
-        </ComingSoonGuard>
+        <NavbarProvider>
+          <ComingSoonGuard>
+            <CompressionProvider>
+              <AppShell />
+            </CompressionProvider>
+          </ComingSoonGuard>
+        </NavbarProvider>
       </ConditionalAuthProvider>
     </Router>
   )

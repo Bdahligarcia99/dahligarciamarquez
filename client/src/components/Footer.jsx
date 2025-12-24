@@ -1,6 +1,7 @@
 // client/src/components/Footer.jsx
 import { Link } from 'react-router-dom'
 import { SITE_NAME } from '../config/branding'
+import BrandImage from './BrandImage'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
@@ -8,6 +9,19 @@ export default function Footer() {
   return (
     <footer role="contentinfo" className="bg-secondary-800 text-secondary-300 mt-16">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Footer Logo */}
+        <div className="flex justify-center mb-6">
+          <Link to="/">
+            <BrandImage 
+              slot="footer-logo"
+              maxHeight={36}
+              maxWidth={180}
+              fallback={<span className="font-bold">{SITE_NAME}</span>}
+              showPlaceholder={true}
+            />
+          </Link>
+        </div>
+
         {/* Links Row */}
         <nav className="flex flex-wrap justify-center gap-6 mb-6" aria-label="Footer">
           <Link 
@@ -26,7 +40,7 @@ export default function Footer() {
             to="/blog" 
             className="hover:text-white transition-colors"
           >
-            Blog
+            Journals
           </Link>
         </nav>
 

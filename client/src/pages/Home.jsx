@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
-import { SITE_NAME } from '../config/branding'
+import { SITE_NAME, BRAND_IMAGES } from '../config/branding'
 import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
 
 const Home = () => {
@@ -88,17 +88,33 @@ const Home = () => {
   return (
     <div ref={containerRef} className="max-w-full" style={{ height: '3000px' }}>
       {/* Fixed Banner at Top - Container stays fixed, image pans */}
+      {/* Image source controlled via BRAND_IMAGES['hero-banner'] in config/branding.ts */}
       <div className="fixed top-0 left-0 right-0 w-full h-screen overflow-hidden z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2000&h=1200&fit=crop" 
-          alt="Mountain landscape at sunrise"
-          className="w-full object-cover"
-          style={{
-            height: '150vh',
-            transform: `translateY(-${whiteScrollTop}px)`
-          }}
-          loading="eager"
-        />
+        {BRAND_IMAGES['hero-banner'] ? (
+          <img 
+            src={BRAND_IMAGES['hero-banner']} 
+            alt="Hero banner"
+            className="w-full object-cover"
+            style={{
+              height: '150vh',
+              transform: `translateY(-${whiteScrollTop}px)`
+            }}
+            loading="eager"
+          />
+        ) : (
+          <div 
+            className="w-full flex items-center justify-center border-4 border-dashed border-gray-300 bg-gray-100"
+            style={{ height: '150vh' }}
+          >
+            <div className="text-center text-gray-400">
+              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p className="text-xl font-medium">hero-banner</p>
+              <p className="text-sm mt-1">Configure in dashboard settings</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Text elements with individual positioning */}

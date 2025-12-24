@@ -2,7 +2,7 @@
 .container { max-width: 1000px; margin: 0 auto; padding: 0 12px; }
 .nav-root { border-bottom: 1px solid rgba(0,0,0,.08); background:#fff; position: sticky; top:0; z-index:40; }
 .nav-bar { display:flex; align-items:center; justify-content:space-between; height:56px; }
-.brand { font-weight:800; text-decoration:none; color:inherit; letter-spacing:.2px; }
+.brand { font-weight:800; text-decoration:none; color:inherit; letter-spacing:.2px; display:flex; align-items:center; }
 
 .links-desktop { display:none; gap:1rem; }
 .link { text-decoration:none; color:#1f2937; font-weight:500; padding:6px 4px; border-radius:6px; }

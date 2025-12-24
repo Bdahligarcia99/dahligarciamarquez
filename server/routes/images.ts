@@ -247,6 +247,42 @@ router.post('/uploads/image', parseMultipartForm, requireSupabaseAdmin, async (r
   }
 })
 
+// GET /api/images/debug - Debug endpoint to check what's in the database
+router.get('/debug', requireSupabaseAdmin, async (req, res) => {
+  try {
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
+    const supabaseAdmin = getSupabaseAdmin()
+    
+    // Check posts with cover images
+    const { data: posts, error: postsError } = await supabaseAdmin
+      .from('posts')
+      .select('id, title, cover_image_url, status')
+      .limit(20)
+    
+    // Check images table
+    const { data: images, error: imagesError } = await supabaseAdmin
+      .from('images')
+      .select('id, path, created_at')
+      .limit(20)
+    
+    res.json({
+      posts: {
+        data: posts,
+        error: postsError?.message,
+        count: posts?.length || 0,
+        withCoverImage: posts?.filter(p => p.cover_image_url)?.length || 0
+      },
+      images: {
+        data: images,
+        error: imagesError?.message,
+        count: images?.length || 0
+      }
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // GET /api/images - Admin only: get all images (optimized with pre-computed data)
 router.get('/', requireSupabaseAdmin, async (req, res) => {
   try {
@@ -879,11 +915,14 @@ async function legacyImageProcessing(req: any, res: any) {
       })
     }
     
+    console.log('✅ Supabase admin client available for legacy processing')
+    
     // Initialize empty arrays for images
     let uploadedImages: any[] = []
     let posts: any[] = []
     
     // Get uploaded images from images table
+    console.log('📁 Querying images table...')
     const { data: uploadedImagesData, error: uploadedError } = await supabaseAdmin
       .from('images')
       .select(`
@@ -902,13 +941,45 @@ async function legacyImageProcessing(req: any, res: any) {
       .order('created_at', { ascending: false })
 
     if (uploadedError) {
-      console.error('Error fetching uploaded images:', uploadedError)
+      console.error('❌ Error fetching uploaded images:', uploadedError)
     } else {
       uploadedImages = uploadedImagesData || []
-      console.log(`Found ${uploadedImages.length} uploaded images`)
+      console.log(`✅ Found ${uploadedImages.length} uploaded images`)
+    }
+
+    // FIRST: Get ALL posts to see what's in the table
+    console.log('📝 Querying ALL posts first (debug)...')
+    const { data: allPostsData, error: allPostsError } = await supabaseAdmin
+      .from('posts')
+      .select('id, title, cover_image_url, status')
+      .limit(50)
+    
+    if (allPostsError) {
+      console.error('❌ Error fetching all posts:', allPostsError)
+    } else {
+      console.log(`📊 Total posts in database: ${allPostsData?.length || 0}`)
+      const postsWithCover = allPostsData?.filter(p => p.cover_image_url) || []
+      console.log(`📊 Posts with cover_image_url: ${postsWithCover.length}`)
+      
+      // Show status breakdown
+      const statusCounts = allPostsData?.reduce((acc: any, p: any) => {
+        acc[p.status] = (acc[p.status] || 0) + 1
+        return acc
+      }, {}) || {}
+      console.log(`📊 Posts by status:`, statusCounts)
+      
+      if (postsWithCover.length > 0) {
+        console.log('📊 Sample posts with cover:', postsWithCover.slice(0, 3).map(p => ({
+          id: p.id,
+          title: p.title,
+          status: p.status,
+          cover_image_url: p.cover_image_url?.substring(0, 50) + '...'
+        })))
+      }
     }
 
     // Get images from post content (cover images and inline images)
+    console.log('📝 Querying posts with cover images...')
     const { data: postsData, error: postsError } = await supabaseAdmin
       .from('posts')
       .select(`
@@ -918,17 +989,20 @@ async function legacyImageProcessing(req: any, res: any) {
         content_rich,
         created_at,
         profiles!posts_author_id_fkey (
-          display_name,
-          email
+          display_name
         )
       `)
       .not('cover_image_url', 'is', null)
 
     if (postsError) {
-      console.error('Error fetching posts with images:', postsError)
+      console.error('❌ Error fetching posts with images:', postsError)
+      console.error('❌ Error details:', JSON.stringify(postsError, null, 2))
     } else {
       posts = postsData || []
-      console.log(`Found ${posts.length} posts with cover images`)
+      console.log(`✅ Found ${posts.length} posts with cover images`)
+      if (posts.length > 0) {
+        console.log('📊 First post:', { id: posts[0].id, title: posts[0].title, has_cover: !!posts[0].cover_image_url })
+      }
     }
 
     // Extract images from post content

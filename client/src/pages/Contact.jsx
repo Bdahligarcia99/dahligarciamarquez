@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { setDocumentTitle, setMetaDescription } from '../utils/metadata'
+import BrandImage from '../components/BrandImage'
 
 const Contact = () => {
   useEffect(() => {
@@ -11,6 +12,17 @@ const Contact = () => {
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <header className="text-center mb-12">
+        {/* Profile Image */}
+        <div className="flex justify-center mb-6">
+          <BrandImage 
+            slot="profile-image"
+            className="object-cover"
+            maxHeight={192}
+            maxWidth={192}
+            rounded={true}
+          />
+        </div>
+        
         <h1 className="text-4xl md:text-5xl font-serif font-bold text-secondary-900 mb-4">
           Get in Touch
         </h1>

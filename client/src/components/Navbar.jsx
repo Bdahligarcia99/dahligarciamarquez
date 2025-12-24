@@ -3,12 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { SITE_NAME } from "../config/branding";
+import { useNavbarSettings } from "../context/NavbarContext";
+import BrandImage from "./BrandImage";
 import ProfileDropdown from "./ProfileDropdown";
 import "../styles/nav.css";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const { isHidden } = useNavbarSettings();
   
   // Get Supabase auth state if available
   let user = null;
@@ -46,14 +49,20 @@ export default function Navbar() {
     <header className="nav-root" ref={menuRef}>
       <div className="nav-bar container">
         <Link to="/" className="brand">
-          {SITE_NAME}
+          <BrandImage 
+            slot="header-logo" 
+            maxHeight={40}
+            maxWidth={200}
+            fallback={<span>{SITE_NAME}</span>}
+            showPlaceholder={true}
+          />
         </Link>
 
         <nav className="links-desktop" aria-label="Primary">
-          <NavLink to="/" className="link">Home</NavLink>
-          <NavLink to="/blog" className="link">Blog</NavLink>
-          <NavLink to="/about" className="link">About</NavLink>
-          <NavLink to="/contact" className="link">Contact</NavLink>
+          {!isHidden('home') && <NavLink to="/" className="link">Home</NavLink>}
+          {!isHidden('journals') && <NavLink to="/blog" className="link">Journals</NavLink>}
+          {!isHidden('about') && <NavLink to="/about" className="link">About</NavLink>}
+          {!isHidden('contact') && <NavLink to="/contact" className="link">Contact</NavLink>}
           {isAdmin && <NavLink to="/dashboard" className="link">Dashboard</NavLink>}
         </nav>
 
@@ -77,10 +86,10 @@ export default function Navbar() {
         aria-hidden={!open}
         aria-label="Primary"
       >
-        <NavLink to="/" className="panel-link" onClick={onNav}>Home</NavLink>
-        <NavLink to="/blog" className="panel-link" onClick={onNav}>Blog</NavLink>
-        <NavLink to="/about" className="panel-link" onClick={onNav}>About</NavLink>
-        <NavLink to="/contact" className="panel-link" onClick={onNav}>Contact</NavLink>
+        {!isHidden('home') && <NavLink to="/" className="panel-link" onClick={onNav}>Home</NavLink>}
+        {!isHidden('journals') && <NavLink to="/blog" className="panel-link" onClick={onNav}>Journals</NavLink>}
+        {!isHidden('about') && <NavLink to="/about" className="panel-link" onClick={onNav}>About</NavLink>}
+        {!isHidden('contact') && <NavLink to="/contact" className="panel-link" onClick={onNav}>Contact</NavLink>}
         {isAdmin && <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>}
         {user ? (
           <span className="panel-link" style={{ cursor: 'default', color: '#6b7280' }}>
