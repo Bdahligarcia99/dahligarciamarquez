@@ -1,12 +1,11 @@
 // client/src/features/dashboard/Overview.jsx
 import React from 'react'
-import { supabaseFetchPostsTotal, supabaseFetchDbHealth } from '../../lib/api'
+import { supabaseFetchPostsTotal } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
-import KpiCard from './components/KpiCard'
-import StatusBadge from './components/StatusBadge'
 import DataInspectorCard from './components/DataInspectorCard'
+import SystemStatusCard from '../../components/SystemStatusCard'
 
-const DEFAULT_STATS = { postsCount: 0, dbHealthy: false }
+const DEFAULT_STATS = { postsCount: 0 }
 
 export default function Overview() {
   const navigate = useNavigate()
@@ -20,17 +19,14 @@ export default function Overview() {
       try {
         setLoading(true)
         setError(null)
-        const [total, db] = await Promise.all([
-          supabaseFetchPostsTotal({ signal: ac.signal }),
-          supabaseFetchDbHealth({ signal: ac.signal }),
-        ])
+        const total = await supabaseFetchPostsTotal({ signal: ac.signal })
         
         // Dev logging
         if (import.meta.env.DEV) {
           console.log('[Overview] posts total:', total)
         }
         
-        setStats({ postsCount: total, dbHealthy: !!db.ok })
+        setStats({ postsCount: total })
       } catch (e) {
         setError('Could not load overview stats.')
         setStats(DEFAULT_STATS)
@@ -42,7 +38,6 @@ export default function Overview() {
   }, [])
 
   const postsCount = stats?.postsCount ?? 0
-  const dbHealthy = stats?.dbHealthy ?? false
 
   if (loading) return <div className="p-4 text-sm opacity-75">Loading overview…</div>
 
@@ -53,16 +48,18 @@ export default function Overview() {
           {error}
         </div>
       )}
+      
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div className="p-4 rounded-xl border bg-white">
-          <div className="text-xs uppercase opacity-60">Posts</div>
+          <div className="text-xs uppercase opacity-60">Entries</div>
           <div className="text-2xl font-semibold">{postsCount}</div>
         </div>
-        <div className="p-4 rounded-xl border bg-white">
-          <div className="text-xs uppercase opacity-60">Database</div>
-          <div className="text-sm">{dbHealthy ? 'Healthy' : 'Unavailable'}</div>
-        </div>
-        {/* Add more cards as needed, always with safe defaults */}
+      </div>
+      
+      {/* System Status Card - handles Server, Database, Storage, Admin API health */}
+      <div className="mt-6">
+        <SystemStatusCard />
       </div>
       
       {/* Data Inspector Card */}
