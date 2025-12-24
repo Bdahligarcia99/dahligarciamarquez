@@ -195,7 +195,11 @@ const ImageLibrary = () => {
     try {
       setLoading(true)
       setError(null)
+      console.log('🔍 Fetching images from /api/images...')
+      
       const data = await supabaseAdminGet('/api/images')
+      console.log('📦 API Response:', data)
+      
       const images = data.images || []
       
       // Debug: Show upload count for troubleshooting
@@ -203,6 +207,8 @@ const ImageLibrary = () => {
       console.log('📊 Images fetched:', {
         total: images.length,
         uploaded: uploadCount,
+        processing_mode: data.processing_mode,
+        stats: data.stats,
         sources: images.reduce((acc, img) => {
           acc[img.source] = (acc[img.source] || 0) + 1
           return acc
@@ -222,8 +228,13 @@ const ImageLibrary = () => {
       
       setImages(images)
     } catch (err) {
-      console.error('Error fetching images:', err)
-      setError(err.message)
+      console.error('❌ Error fetching images:', err)
+      console.error('Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      })
+      setError(err.message || 'Unknown error occurred')
     } finally {
       setLoading(false)
     }
@@ -295,15 +306,22 @@ const ImageLibrary = () => {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <h3 className="text-red-800 font-medium">Error Loading Images</h3>
-        <p className="text-red-600 text-sm mt-1">{error}</p>
-        <button
-          onClick={fetchImages}
-          className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-        >
-          Try Again
-        </button>
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h3 className="text-red-800 font-medium text-lg">Error Loading Images</h3>
+          <p className="text-red-600 mt-2">{error}</p>
+          <div className="mt-4 space-x-2">
+            <button
+              onClick={fetchImages}
+              className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+            >
+              Try Again
+            </button>
+          </div>
+          <div className="mt-4 text-sm text-gray-600">
+            <p>Check the browser console (F12) for more details.</p>
+          </div>
+        </div>
       </div>
     )
   }
