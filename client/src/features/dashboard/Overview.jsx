@@ -4,6 +4,7 @@ import { supabaseFetchPostsTotal } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import DataInspectorCard from './components/DataInspectorCard'
 import SystemStatusCard from '../../components/SystemStatusCard'
+import StorageUsageCard from '../../components/StorageUsageCard'
 
 const DEFAULT_STATS = { postsCount: 0 }
 
@@ -57,9 +58,10 @@ export default function Overview() {
         </div>
       </div>
       
-      {/* System Status Card - handles Server, Database, Storage, Admin API health */}
-      <div className="mt-6">
+      {/* System Status and Storage Usage Cards */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SystemStatusCard />
+        <StorageUsageCard />
       </div>
       
       {/* Data Inspector Card */}

@@ -87,4 +87,84 @@ router.get('/health', requireSupabaseAdmin, (req, res) => {
   })
 })
 
+// GET /api/admin/storage-stats - Get database and storage usage stats
+router.get('/storage-stats', requireSupabaseAdmin, async (req, res) => {
+  const supabase = getSupabaseAdmin()
+  const stats: {
+    database?: { size_bytes: number; size_formatted: string };
+    storage?: { size_bytes: number; size_formatted: string; file_count: number };
+    error?: string;
+  } = {}
+
+  try {
+    // Get database size using pg_database_size
+    const { data: dbData, error: dbError } = await supabase.rpc('get_database_size')
+    
+    if (!dbError && dbData) {
+      stats.database = {
+        size_bytes: dbData.size_bytes || 0,
+        size_formatted: formatBytes(dbData.size_bytes || 0)
+      }
+    } else {
+      // Fallback: try direct query (may not work due to permissions)
+      console.warn('Could not get database size via RPC:', dbError?.message)
+    }
+
+    // Get storage bucket size
+    const bucketName = process.env.SUPABASE_BUCKET || 'public-images'
+    const { data: files, error: storageError } = await supabase.storage
+      .from(bucketName)
+      .list('', { limit: 1000, sortBy: { column: 'created_at', order: 'desc' } })
+
+    if (!storageError && files) {
+      // Recursively get all files to calculate total size
+      let totalSize = 0
+      let fileCount = 0
+      
+      const processFolder = async (path: string) => {
+        const { data: items } = await supabase.storage
+          .from(bucketName)
+          .list(path, { limit: 1000 })
+        
+        if (items) {
+          for (const item of items) {
+            if (item.id) {
+              // It's a file
+              totalSize += item.metadata?.size || 0
+              fileCount++
+            } else {
+              // It's a folder, recurse
+              const folderPath = path ? `${path}/${item.name}` : item.name
+              await processFolder(folderPath)
+            }
+          }
+        }
+      }
+      
+      await processFolder('')
+      
+      stats.storage = {
+        size_bytes: totalSize,
+        size_formatted: formatBytes(totalSize),
+        file_count: fileCount
+      }
+    } else {
+      console.warn('Could not list storage files:', storageError?.message)
+    }
+
+    res.json({ ok: true, stats })
+  } catch (error: any) {
+    console.error('Error getting storage stats:', error)
+    res.json({ ok: false, error: error.message, stats })
+  }
+})
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
 export default router
