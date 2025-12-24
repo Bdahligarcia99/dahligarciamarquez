@@ -262,7 +262,11 @@ async function checkStorageHealth(): Promise<CheckResult> {
 
 async function checkDbHealth(): Promise<CheckResult> {
   try {
-    const response = await fetchWithTimeout(`${BASE_URL}/api/db/health`);
+    // Use /api/auth/db-ping which is available in the Supabase server
+    const response = await fetchWithTimeout(`${BASE_URL}/api/auth/db-ping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
     
     if (response.status === 200) {
       const data = await response.json();
@@ -364,7 +368,7 @@ function getFixHint(result: CheckResult): string {
     case 'Supabase Admin':
       return 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables';
     case 'Database Health':
-      return 'Check database connection and /api/db/health endpoint';
+      return 'Check database connection and Supabase configuration';
     case 'Storage Health':
       if (result.details.includes('mount /api/storage')) {
         return 'Add app.use(\'/api/storage\', storageRoutes) to server.js';
