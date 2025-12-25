@@ -104,7 +104,7 @@ export default function ComingSoonGuard({ children }) {
             {import.meta.env.VITE_SITE_NAME || 'Dahli Garcia Marquez'}
           </div>
           
-          {/* Admin Sign In Button - Only shown after secret key combo */}
+          {/* Admin Sign In Button - Only shown after secret key combo (ESC 3x) */}
           {showAdminButton && (
             <a
               href="/auth/signin"
@@ -112,13 +112,6 @@ export default function ComingSoonGuard({ children }) {
             >
               Admin Sign In
             </a>
-          )}
-          
-          {/* Hint for admin (very subtle) */}
-          {!showAdminButton && (
-            <div className="mt-8 text-xs opacity-0 hover:opacity-30 transition-opacity">
-              Press ESC 3x
-            </div>
           )}
         </div>
       </div>
