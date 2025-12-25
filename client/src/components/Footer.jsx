@@ -1,6 +1,6 @@
 // client/src/components/Footer.jsx
 import { Link } from 'react-router-dom'
-import { SITE_NAME } from '../config/branding'
+import { SITE_NAME, SITE_VERSION } from '../config/branding'
 import BrandImage from './BrandImage'
 
 export default function Footer() {
@@ -47,6 +47,7 @@ export default function Footer() {
         {/* Copyright */}
         <div className="text-center text-sm">
           <p>© {currentYear} {SITE_NAME}. All rights reserved.</p>
+          <p className="text-secondary-500 text-xs mt-1">v{SITE_VERSION}</p>
         </div>
       </div>
     </footer>
