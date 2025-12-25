@@ -118,12 +118,13 @@ const Home = () => {
       </div>
 
       {/* Text elements with individual positioning */}
-      <div className="fixed inset-0 z-20 pointer-events-none">
+      {/* Container is pointer-events-none to allow scroll pass-through, but text is selectable */}
+      <div className="fixed inset-0 z-20 pointer-events-none" role="banner" aria-label="Welcome section">
         <div className="text-center px-4 max-w-4xl mx-auto">
           {/* Title - Individual position control */}
           {titleOpacity > 0 && (
             <h1 
-              className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl absolute left-0 right-0"
+              className="text-5xl md:text-7xl font-serif font-bold text-white drop-shadow-2xl absolute left-0 right-0 pointer-events-auto select-text cursor-text"
               style={{ 
                 top: `${titleY}px`,
                 opacity: titleOpacity
@@ -136,7 +137,7 @@ const Home = () => {
           {/* Description - Individual position control */}
           {descOpacity > 0 && (
             <p 
-              className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg max-w-2xl mx-auto absolute left-0 right-0 px-4"
+              className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg max-w-2xl mx-auto absolute left-0 right-0 px-4 pointer-events-auto select-text cursor-text"
               style={{ 
                 top: `${descY}px`,
                 opacity: descOpacity
