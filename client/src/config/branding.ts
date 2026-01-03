@@ -3,7 +3,7 @@
 // These values can later be loaded from database via dashboard settings
 
 export const SITE_NAME = "dahligarciamarquez";
-export const SITE_VERSION = "1.0.1";
+export const SITE_VERSION = "1.0.2";
 
 // Brand image slots - set URL to enable, leave empty string for placeholder
 // Later: These will be fetched from system_settings table in Supabase
