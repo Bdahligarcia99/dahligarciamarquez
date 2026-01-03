@@ -58,6 +58,8 @@ const PostsPage = () => {
   const [editingPost, setEditingPost] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [updatingStatusId, setUpdatingStatusId] = useState(null)
+  const [sortBy, setSortBy] = useState('created_at') // 'title', 'created_at', 'status'
+  const [sortDirection, setSortDirection] = useState('desc') // 'asc' or 'desc'
   
   // Curator state
   const [selectedJournal, setSelectedJournal] = useState(null)
@@ -81,17 +83,55 @@ const PostsPage = () => {
   }, [])
 
   useEffect(() => {
-    // Client-side filtering
-    if (searchTerm.trim() === '') {
-      setFilteredPosts(posts)
-    } else {
-      const filtered = posts.filter(post =>
+    // Client-side filtering and sorting
+    let result = posts
+    
+    // Filter
+    if (searchTerm.trim() !== '') {
+      result = result.filter(post =>
         post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (post.content_text || '').toLowerCase().includes(searchTerm.toLowerCase())
       )
-      setFilteredPosts(filtered)
     }
-  }, [posts, searchTerm])
+    
+    // Sort
+    result = [...result].sort((a, b) => {
+      let aVal, bVal
+      
+      switch (sortBy) {
+        case 'title':
+          aVal = (a.title || '').toLowerCase()
+          bVal = (b.title || '').toLowerCase()
+          break
+        case 'status':
+          aVal = a.status || 'draft'
+          bVal = b.status || 'draft'
+          break
+        case 'created_at':
+        default:
+          aVal = new Date(a.created_at).getTime()
+          bVal = new Date(b.created_at).getTime()
+          break
+      }
+      
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+    
+    setFilteredPosts(result)
+  }, [posts, searchTerm, sortBy, sortDirection])
+  
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      // Toggle direction if same column
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      // New column, default to ascending for title, descending for date
+      setSortBy(column)
+      setSortDirection(column === 'created_at' ? 'desc' : 'asc')
+    }
+  }
 
   const fetchPosts = async () => {
     try {
@@ -277,14 +317,44 @@ const PostsPage = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Title
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                        onClick={() => handleSort('title')}
+                      >
+                        <span className="flex items-center gap-1">
+                          Title
+                          {sortBy === 'title' && (
+                            <svg className={`w-4 h-4 ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </span>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created At
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                        onClick={() => handleSort('created_at')}
+                      >
+                        <span className="flex items-center gap-1">
+                          Created At
+                          {sortBy === 'created_at' && (
+                            <svg className={`w-4 h-4 ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </span>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                        onClick={() => handleSort('status')}
+                      >
+                        <span className="flex items-center gap-1">
+                          Status
+                          {sortBy === 'status' && (
+                            <svg className={`w-4 h-4 ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </span>
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
