@@ -319,42 +319,39 @@ const PostsPage = () => {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                        className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                         onClick={() => handleSort('title')}
                       >
-                        <span className="flex items-center gap-1">
-                          Title
-                          {sortBy === 'title' && (
-                            <svg className={`w-4 h-4 ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          )}
+                        <span className={`transition-colors ${
+                          sortBy === 'title'
+                            ? 'text-blue-700 font-semibold'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}>
+                          Title {sortBy === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
                         </span>
                       </th>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                        className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                         onClick={() => handleSort('created_at')}
                       >
-                        <span className="flex items-center gap-1">
-                          Created At
-                          {sortBy === 'created_at' && (
-                            <svg className={`w-4 h-4 ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          )}
+                        <span className={`transition-colors ${
+                          sortBy === 'created_at'
+                            ? 'text-blue-700 font-semibold'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}>
+                          Created At {sortBy === 'created_at' && (sortDirection === 'asc' ? '↑' : '↓')}
                         </span>
                       </th>
                       <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                        className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                         onClick={() => handleSort('status')}
                       >
-                        <span className="flex items-center gap-1">
-                          Status
-                          {sortBy === 'status' && (
-                            <svg className={`w-4 h-4 ${sortDirection === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          )}
+                        <span className={`transition-colors ${
+                          sortBy === 'status'
+                            ? 'text-blue-700 font-semibold'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}>
+                          Status {sortBy === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
                         </span>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
