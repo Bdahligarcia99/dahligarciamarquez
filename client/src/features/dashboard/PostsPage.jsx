@@ -5,6 +5,7 @@ import { supabaseAdminGet, supabaseAdminDelete, supabaseAdminPatch } from '../..
 import { isHTTPError } from '../../lib/httpErrors'
 import PostFormModal from './components/PostFormModal'
 import StatusBadge from './components/StatusBadge'
+import EmojiPicker from '../../components/EmojiPicker'
 // Removed AdminTokenControls - using Supabase JWT auth now
 
 // Placeholder data for Curator - will be replaced with API data later
@@ -65,6 +66,8 @@ const PostsPage = () => {
   const [showNewJournalModal, setShowNewJournalModal] = useState(false)
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false)
   const [showAddEntryModal, setShowAddEntryModal] = useState(false)
+  const [newJournalName, setNewJournalName] = useState('')
+  const [newJournalEmoji, setNewJournalEmoji] = useState('📚')
 
   useEffect(() => {
     fetchPosts()
@@ -534,16 +537,45 @@ const PostsPage = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Travel Adventures" />
+                    <input 
+                      type="text" 
+                      value={newJournalName}
+                      onChange={(e) => setNewJournalName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md" 
+                      placeholder="e.g., Travel Adventures" 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Icon (emoji)</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., 📚" />
+                    <EmojiPicker 
+                      selectedEmoji={newJournalEmoji}
+                      onSelect={setNewJournalEmoji}
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
-                  <button onClick={() => setShowNewJournalModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-                  <button onClick={() => setShowNewJournalModal(false)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Create Journal</button>
+                  <button 
+                    onClick={() => {
+                      setShowNewJournalModal(false)
+                      setNewJournalName('')
+                      setNewJournalEmoji('📚')
+                    }} 
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // TODO: Save journal to database
+                      console.log('Creating journal:', { name: newJournalName, icon: newJournalEmoji })
+                      setShowNewJournalModal(false)
+                      setNewJournalName('')
+                      setNewJournalEmoji('📚')
+                    }} 
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Create Journal
+                  </button>
                 </div>
               </div>
             </div>
