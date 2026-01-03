@@ -69,6 +69,10 @@ const PostsPage = () => {
   const [newJournalName, setNewJournalName] = useState('')
   const [newJournalEmoji, setNewJournalEmoji] = useState('📚')
   const [newJournalStatus, setNewJournalStatus] = useState('draft')
+  const [newJournalIconType, setNewJournalIconType] = useState('emoji') // 'emoji' or 'image'
+  const [newJournalImageUrl, setNewJournalImageUrl] = useState('')
+  const [newJournalImageFile, setNewJournalImageFile] = useState(null)
+  const [newJournalImagePreview, setNewJournalImagePreview] = useState(null)
 
   useEffect(() => {
     fetchPosts()
@@ -533,7 +537,7 @@ const PostsPage = () => {
           {/* MODALS (Placeholders) */}
           {showNewJournalModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-semibold mb-4">Create New Journal</h3>
                 <div className="space-y-4">
                   <div>
@@ -546,13 +550,154 @@ const PostsPage = () => {
                       placeholder="e.g., Travel Adventures" 
                     />
                   </div>
+                  
+                  {/* Icon Type Toggle */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Icon (emoji)</label>
-                    <EmojiPicker 
-                      selectedEmoji={newJournalEmoji}
-                      onSelect={setNewJournalEmoji}
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Icon Type</label>
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setNewJournalIconType('emoji')}
+                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newJournalIconType === 'emoji'
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <span className="text-lg">😀</span>
+                          Emoji
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewJournalIconType('image')}
+                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newJournalIconType === 'image'
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Image
+                        </span>
+                      </button>
+                    </div>
+                    
+                    {/* Emoji Picker */}
+                    {newJournalIconType === 'emoji' && (
+                      <EmojiPicker 
+                        selectedEmoji={newJournalEmoji}
+                        onSelect={setNewJournalEmoji}
+                      />
+                    )}
+                    
+                    {/* Image Picker */}
+                    {newJournalIconType === 'image' && (
+                      <div className="space-y-3">
+                        {/* Image Preview */}
+                        {(newJournalImagePreview || newJournalImageUrl) && (
+                          <div className="flex justify-center">
+                            <div className="relative">
+                              <img 
+                                src={newJournalImagePreview || newJournalImageUrl}
+                                alt="Journal icon preview"
+                                className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200"
+                                onError={(e) => {
+                                  e.target.style.display = 'none'
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewJournalImageUrl('')
+                                  setNewJournalImageFile(null)
+                                  if (newJournalImagePreview) {
+                                    URL.revokeObjectURL(newJournalImagePreview)
+                                    setNewJournalImagePreview(null)
+                                  }
+                                }}
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* URL Input */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
+                          <input
+                            type="url"
+                            value={newJournalImageUrl}
+                            onChange={(e) => {
+                              setNewJournalImageUrl(e.target.value)
+                              setNewJournalImageFile(null)
+                              if (newJournalImagePreview) {
+                                URL.revokeObjectURL(newJournalImagePreview)
+                                setNewJournalImagePreview(null)
+                              }
+                            }}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md"
+                            placeholder="https://example.com/image.jpg"
+                          />
+                        </div>
+                        
+                        {/* Divider */}
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-200" />
+                          </div>
+                          <div className="relative flex justify-center text-xs">
+                            <span className="px-2 bg-white text-gray-400">or</span>
+                          </div>
+                        </div>
+                        
+                        {/* File Upload */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Upload Image</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  setNewJournalImageFile(file)
+                                  setNewJournalImageUrl('')
+                                  if (newJournalImagePreview) {
+                                    URL.revokeObjectURL(newJournalImagePreview)
+                                  }
+                                  setNewJournalImagePreview(URL.createObjectURL(file))
+                                }
+                              }}
+                              className="hidden"
+                              id="journal-image-upload"
+                            />
+                            <label
+                              htmlFor="journal-image-upload"
+                              className="flex-1 px-3 py-2 text-sm text-center border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="flex items-center justify-center gap-2 text-gray-600">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                {newJournalImageFile ? newJournalImageFile.name : 'Choose file...'}
+                              </span>
+                            </label>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">PNG, JPG, WebP, GIF up to 5MB</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <div className="flex gap-2">
@@ -620,6 +765,13 @@ const PostsPage = () => {
                       setNewJournalName('')
                       setNewJournalEmoji('📚')
                       setNewJournalStatus('draft')
+                      setNewJournalIconType('emoji')
+                      setNewJournalImageUrl('')
+                      setNewJournalImageFile(null)
+                      if (newJournalImagePreview) {
+                        URL.revokeObjectURL(newJournalImagePreview)
+                        setNewJournalImagePreview(null)
+                      }
                     }} 
                     className="px-4 py-2 text-gray-600 hover:text-gray-800"
                   >
@@ -628,11 +780,25 @@ const PostsPage = () => {
                   <button 
                     onClick={() => {
                       // TODO: Save journal to database
-                      console.log('Creating journal:', { name: newJournalName, icon: newJournalEmoji, status: newJournalStatus })
+                      const iconData = newJournalIconType === 'emoji' 
+                        ? { type: 'emoji', value: newJournalEmoji }
+                        : { type: 'image', value: newJournalImageUrl || newJournalImageFile }
+                      console.log('Creating journal:', { 
+                        name: newJournalName, 
+                        icon: iconData, 
+                        status: newJournalStatus 
+                      })
                       setShowNewJournalModal(false)
                       setNewJournalName('')
                       setNewJournalEmoji('📚')
                       setNewJournalStatus('draft')
+                      setNewJournalIconType('emoji')
+                      setNewJournalImageUrl('')
+                      setNewJournalImageFile(null)
+                      if (newJournalImagePreview) {
+                        URL.revokeObjectURL(newJournalImagePreview)
+                        setNewJournalImagePreview(null)
+                      }
                     }} 
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
