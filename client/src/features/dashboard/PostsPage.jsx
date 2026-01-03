@@ -60,6 +60,7 @@ const PostsPage = () => {
   const [updatingStatusId, setUpdatingStatusId] = useState(null)
   const [sortBy, setSortBy] = useState('created_at') // 'title', 'created_at', 'status'
   const [sortDirection, setSortDirection] = useState('desc') // 'asc' or 'desc'
+  const [organizationView, setOrganizationView] = useState('journal') // 'journal' or 'collection'
   
   // Curator state
   const [selectedJournal, setSelectedJournal] = useState(null)
@@ -356,6 +357,31 @@ const PostsPage = () => {
                           )}
                         </span>
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setOrganizationView('journal')}
+                            className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                              organizationView === 'journal'
+                                ? 'bg-blue-100 text-blue-700 font-semibold'
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            Journal
+                          </button>
+                          <span className="text-gray-300">/</span>
+                          <button
+                            onClick={() => setOrganizationView('collection')}
+                            className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                              organizationView === 'collection'
+                                ? 'bg-blue-100 text-blue-700 font-semibold'
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            Collection
+                          </button>
+                        </div>
+                      </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
@@ -390,6 +416,19 @@ const PostsPage = () => {
                             <option value="published">Published</option>
                             <option value="archived">Archived</option>
                           </select>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {organizationView === 'journal' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                              <span className="text-gray-400">—</span>
+                              <span className="text-gray-500">Unassigned</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                              <span className="text-gray-400">—</span>
+                              <span className="text-gray-500">Unassigned</span>
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
                           <button
