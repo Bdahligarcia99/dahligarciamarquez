@@ -561,10 +561,29 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   // Render edit mode
   const renderEditMode = () => (
     <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">
-          {postId ? 'Edit Post' : 'Create New Post'}
-        </h1>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard/posts')}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+            title="Back to Entries"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h1 className="text-2xl font-bold">
+            {postId ? 'Edit Entry' : 'Create New Entry'}
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard/posts')}
+          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          Back to Entries
+        </button>
       </div>
 
       {error && (
