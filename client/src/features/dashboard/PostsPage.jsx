@@ -78,6 +78,9 @@ const PostsPage = () => {
   const [newJournalImagePreview, setNewJournalImagePreview] = useState(null)
   const [newCollectionName, setNewCollectionName] = useState('')
   const [newCollectionStatus, setNewCollectionStatus] = useState('draft')
+  const [selectedEntryForAction, setSelectedEntryForAction] = useState(null)
+  const [showEntryActionModal, setShowEntryActionModal] = useState(false)
+  const [showAttributesView, setShowAttributesView] = useState(false)
 
   useEffect(() => {
     fetchPosts()
@@ -653,7 +656,11 @@ const PostsPage = () => {
                       <div
                         key={post.id}
                         className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 relative group cursor-pointer hover:border-gray-300 hover:bg-gray-100 transition-colors"
-                        onClick={() => navigate(`/dashboard/posts/${post.id}/edit`)}
+                        onClick={() => {
+                          setSelectedEntryForAction(post)
+                          setShowEntryActionModal(true)
+                          setShowAttributesView(false)
+                        }}
                         title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}`}
                       >
                         {/* Status indicator */}
@@ -1136,6 +1143,176 @@ const PostsPage = () => {
                     Add Selected
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Entry Action Modal */}
+          {showEntryActionModal && selectedEntryForAction && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+                {!showAttributesView ? (
+                  <>
+                    {/* Main Menu */}
+                    <div className="flex items-center gap-3 mb-4">
+                      {selectedEntryForAction.cover_image_url ? (
+                        <img 
+                          src={selectedEntryForAction.cover_image_url} 
+                          alt=""
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate">
+                          {selectedEntryForAction.title || 'Untitled'}
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          {selectedEntryForAction.status || 'draft'} • {new Date(selectedEntryForAction.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setShowEntryActionModal(false)
+                          navigate(`/dashboard/posts/${selectedEntryForAction.id}/edit`)
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <div>
+                          <span className="font-medium text-gray-900">Edit Entry</span>
+                          <p className="text-xs text-gray-500">Open in editor</p>
+                        </div>
+                      </button>
+                      
+                      <button
+                        onClick={() => setShowAttributesView(true)}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                        <div>
+                          <span className="font-medium text-gray-900">Edit Attributes</span>
+                          <p className="text-xs text-gray-500">Change status or delete</p>
+                        </div>
+                      </button>
+                    </div>
+                    
+                    <button 
+                      onClick={() => {
+                        setShowEntryActionModal(false)
+                        setSelectedEntryForAction(null)
+                      }}
+                      className="w-full mt-4 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Attributes View */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <button
+                        onClick={() => setShowAttributesView(false)}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h3 className="font-semibold text-gray-900">Edit Attributes</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {/* Status */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              await handleStatusChange(selectedEntryForAction.id, 'draft')
+                              setSelectedEntryForAction({...selectedEntryForAction, status: 'draft'})
+                            }}
+                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                              selectedEntryForAction.status === 'draft' || !selectedEntryForAction.status
+                                ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            Draft
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await handleStatusChange(selectedEntryForAction.id, 'published')
+                              setSelectedEntryForAction({...selectedEntryForAction, status: 'published'})
+                            }}
+                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                              selectedEntryForAction.status === 'published'
+                                ? 'bg-green-50 border-green-300 text-green-700'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            Published
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await handleStatusChange(selectedEntryForAction.id, 'archived')
+                              setSelectedEntryForAction({...selectedEntryForAction, status: 'archived'})
+                            }}
+                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                              selectedEntryForAction.status === 'archived'
+                                ? 'bg-gray-100 border-gray-400 text-gray-700'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            Archived
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Delete */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete "${selectedEntryForAction.title}"?`)) {
+                              await handleDeletePost(selectedEntryForAction.id)
+                              setShowEntryActionModal(false)
+                              setSelectedEntryForAction(null)
+                            }
+                          }}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete Entry
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => {
+                        setShowEntryActionModal(false)
+                        setSelectedEntryForAction(null)
+                        setShowAttributesView(false)
+                      }}
+                      className="w-full mt-4 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                    >
+                      Done
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
