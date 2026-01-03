@@ -73,6 +73,8 @@ const PostsPage = () => {
   const [newJournalImageUrl, setNewJournalImageUrl] = useState('')
   const [newJournalImageFile, setNewJournalImageFile] = useState(null)
   const [newJournalImagePreview, setNewJournalImagePreview] = useState(null)
+  const [newCollectionName, setNewCollectionName] = useState('')
+  const [newCollectionStatus, setNewCollectionStatus] = useState('draft')
 
   useEffect(() => {
     fetchPosts()
@@ -816,12 +818,101 @@ const PostsPage = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Summer 2024" />
+                    <input 
+                      type="text" 
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md" 
+                      placeholder="e.g., Summer 2024" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewCollectionStatus('draft')}
+                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newCollectionStatus === 'draft'
+                            ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Draft
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewCollectionStatus('published')}
+                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newCollectionStatus === 'published'
+                            ? 'bg-green-50 border-green-300 text-green-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          Published
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewCollectionStatus('archived')}
+                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newCollectionStatus === 'archived'
+                            ? 'bg-gray-100 border-gray-400 text-gray-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                          Archived
+                        </span>
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      {newCollectionStatus === 'draft' && 'Only visible to you while editing'}
+                      {newCollectionStatus === 'published' && 'Visible to all visitors'}
+                      {newCollectionStatus === 'archived' && 'Hidden from public, preserved for reference'}
+                    </p>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
-                  <button onClick={() => setShowNewCollectionModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-                  <button onClick={() => setShowNewCollectionModal(false)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Create Collection</button>
+                  <button 
+                    onClick={() => {
+                      setShowNewCollectionModal(false)
+                      setNewCollectionName('')
+                      setNewCollectionStatus('draft')
+                    }} 
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // TODO: Save collection to database
+                      console.log('Creating collection:', { 
+                        name: newCollectionName, 
+                        status: newCollectionStatus,
+                        journalId: selectedJournal 
+                      })
+                      setShowNewCollectionModal(false)
+                      setNewCollectionName('')
+                      setNewCollectionStatus('draft')
+                    }} 
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Create Collection
+                  </button>
                 </div>
               </div>
             </div>
