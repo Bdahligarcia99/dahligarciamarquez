@@ -494,7 +494,7 @@ const PostsPage = () => {
             )}
           </div>
 
-          {/* UNASSIGNED ENTRIES */}
+          {/* UNASSIGNED ENTRIES - Shows actual posts from database */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <button
               onClick={() => setShowUnassigned(!showUnassigned)}
@@ -505,7 +505,9 @@ const PostsPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <span className="font-medium text-gray-700">Unassigned Entries</span>
-                <span className="text-sm text-gray-400">(5)</span>
+                <span className="text-sm text-gray-400">
+                  ({loading ? '...' : posts.length})
+                </span>
               </div>
               <svg 
                 className={`w-5 h-5 text-gray-400 transition-transform ${showUnassigned ? 'rotate-180' : ''}`} 
@@ -519,19 +521,62 @@ const PostsPage = () => {
             
             {showUnassigned && (
               <div className="px-6 pb-6 border-t border-gray-100">
-                <div className="flex flex-wrap gap-4 pt-4">
-                  {['Draft Post', 'Random Ideas', 'Notes', 'Untitled', 'Quick Thought'].map((title, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500"
+                {loading ? (
+                  <div className="py-8 text-center text-gray-400">
+                    <svg className="w-6 h-6 animate-spin mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Loading entries...
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="py-8 text-center text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-sm">No entries found</p>
+                    <button 
+                      onClick={() => navigate('/dashboard/posts/new')}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-700"
                     >
-                      <svg className="w-8 h-8 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span className="text-xs font-medium text-center px-2">{title}</span>
-                    </div>
-                  ))}
-                </div>
+                      Create your first entry →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-4 pt-4">
+                    {posts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 relative group cursor-pointer hover:border-gray-300 hover:bg-gray-100 transition-colors"
+                        onClick={() => navigate(`/dashboard/posts/${post.id}/edit`)}
+                        title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}`}
+                      >
+                        {/* Status indicator */}
+                        <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${
+                          post.status === 'published' ? 'bg-green-500' :
+                          post.status === 'archived' ? 'bg-gray-400' :
+                          'bg-yellow-500'
+                        }`} title={post.status || 'draft'} />
+                        
+                        {/* Cover image or icon */}
+                        {post.cover_image_url ? (
+                          <img 
+                            src={post.cover_image_url} 
+                            alt=""
+                            className="w-10 h-10 object-cover rounded mb-1"
+                          />
+                        ) : (
+                          <svg className="w-8 h-8 mb-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        )}
+                        
+                        <span className="text-xs font-medium text-center px-1 truncate w-full">
+                          {post.title || 'Untitled'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -925,20 +970,65 @@ const PostsPage = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Search entries</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Search..." />
+                    <input 
+                      type="text" 
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md" 
+                      placeholder="Search by title..." 
+                    />
                   </div>
                   <div className="border border-gray-200 rounded-md max-h-60 overflow-y-auto">
-                    {['Draft Post', 'Random Ideas', 'Notes', 'Untitled', 'Quick Thought'].map((title, i) => (
-                      <label key={i} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
-                        <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                        <span className="text-sm text-gray-700">{title}</span>
-                      </label>
-                    ))}
+                    {loading ? (
+                      <div className="p-4 text-center text-gray-400">Loading entries...</div>
+                    ) : filteredPosts.length === 0 ? (
+                      <div className="p-4 text-center text-gray-400">
+                        {searchTerm ? 'No entries match your search' : 'No entries available'}
+                      </div>
+                    ) : (
+                      filteredPosts.map((post) => (
+                        <label key={post.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
+                          <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-gray-700 block truncate">{post.title || 'Untitled'}</span>
+                            <span className="text-xs text-gray-400">
+                              {post.status || 'draft'} • {new Date(post.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {/* Status dot */}
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            post.status === 'published' ? 'bg-green-500' :
+                            post.status === 'archived' ? 'bg-gray-400' :
+                            'bg-yellow-500'
+                          }`} />
+                        </label>
+                      ))
+                    )}
                   </div>
+                  <p className="text-xs text-gray-500">
+                    {filteredPosts.length} {filteredPosts.length === 1 ? 'entry' : 'entries'} available
+                  </p>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
-                  <button onClick={() => setShowAddEntryModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-                  <button onClick={() => setShowAddEntryModal(false)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Add Selected</button>
+                  <button 
+                    onClick={() => {
+                      setShowAddEntryModal(false)
+                      setSearchTerm('')
+                    }} 
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // TODO: Save selected entries to collection
+                      setShowAddEntryModal(false)
+                      setSearchTerm('')
+                    }} 
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Add Selected
+                  </button>
                 </div>
               </div>
             </div>
