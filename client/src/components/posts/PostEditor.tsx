@@ -7,6 +7,7 @@ import RichTextEditor, { RichTextEditorRef } from '../editor/RichTextEditor'
 import { uploadImage, UploadError } from '../../utils/uploadImage'
 import { validateImageUrl, extractImageUrlsFromHtml } from '../../utils/imageValidation'
 import { generateCoverImageAlt } from '../../utils/altTextGenerator'
+import { parseImportContent, getFieldsSummary, ImportMode, ParsedEntryFields } from '../../utils/importParser'
 import ImageManagementPanel from '../editor/ImageManagementPanel'
 import CompressionControls from '../editor/CompressionControls'
 import SmartTooltip from '../editor/SmartTooltip'
@@ -58,6 +59,14 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const [coverCustomQuality, setCoverCustomQuality] = useState(75)
   const [coverCompressionResult, setCoverCompressionResult] = useState<{ url: string; stats: string } | null>(null)
   const [coverCompressing, setCoverCompressing] = useState(false)
+  
+  // Import modal states
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importInput, setImportInput] = useState('')
+  const [importMode, setImportMode] = useState<ImportMode>('auto')
+  const [importOverwrite, setImportOverwrite] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importPreview, setImportPreview] = useState<{ fields: ParsedEntryFields; summary: string[] } | null>(null)
   
   // Get compression settings
   const { settings: compressionSettings, isCompressionEnabled } = useCompressionSettingsStatic()
@@ -533,6 +542,98 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     setShowImagePanel(!showImagePanel)
   }
 
+  // Import modal handlers
+  const handleImportOpen = () => {
+    setShowImportModal(true)
+    setImportInput('')
+    setImportMode('auto')
+    setImportOverwrite(false)
+    setImportError(null)
+    setImportPreview(null)
+  }
+
+  const handleImportClose = () => {
+    setShowImportModal(false)
+    setImportInput('')
+    setImportError(null)
+    setImportPreview(null)
+  }
+
+  const handleImportParse = () => {
+    setImportError(null)
+    setImportPreview(null)
+    
+    // Get current field values for overwrite logic
+    const currentFields: ParsedEntryFields = {
+      title: title || undefined,
+      excerpt: excerpt || undefined,
+      coverImageUrl: coverImageUrl || undefined,
+      coverImageAlt: coverImageAlt || undefined,
+      content: content || undefined,
+      status: status as 'draft' | 'published' | 'archived'
+    }
+    
+    const result = parseImportContent(importInput, importMode, importOverwrite, currentFields)
+    
+    if (!result.success) {
+      setImportError(result.error || 'Failed to parse input')
+      return
+    }
+    
+    const summary = getFieldsSummary(result.fields)
+    
+    if (summary.length === 0) {
+      setImportError('No mappable fields found in the input. The content may not contain recognizable entry fields.')
+      return
+    }
+    
+    setImportPreview({
+      fields: result.fields,
+      summary: [
+        `Detected format: ${result.detectedFormat?.toUpperCase()}`,
+        ...summary,
+        ...(result.warnings || [])
+      ]
+    })
+  }
+
+  const handleImportApply = () => {
+    if (!importPreview?.fields) return
+    
+    const fields = importPreview.fields
+    
+    // Apply each parsed field to state
+    if (fields.title !== undefined) {
+      setTitle(fields.title)
+    }
+    if (fields.excerpt !== undefined) {
+      setExcerpt(fields.excerpt)
+    }
+    if (fields.coverImageUrl !== undefined) {
+      setCoverImageUrl(fields.coverImageUrl)
+    }
+    if (fields.coverImageAlt !== undefined) {
+      setCoverImageAlt(fields.coverImageAlt)
+    }
+    if (fields.content !== undefined) {
+      setContent(fields.content)
+      // If we have HTML content, also update the editor
+      if (fields.content.html && editorRef.current?.editor) {
+        editorRef.current.editor.commands.setContent(fields.content.html)
+      } else if (fields.content.json && editorRef.current?.editor) {
+        editorRef.current.editor.commands.setContent(fields.content.json)
+      }
+    }
+    if (fields.status !== undefined) {
+      setStatus(fields.status)
+    }
+    
+    setSuccessMessage('Content imported successfully!')
+    setTimeout(() => setSuccessMessage(null), 3000)
+    
+    handleImportClose()
+  }
+
   useEffect(() => {
     fetchLabels()
     if (postId) {
@@ -577,13 +678,27 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             {postId ? 'Edit Entry' : 'Create New Entry'}
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/dashboard/posts')}
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          Back to Entries
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Import Button */}
+          <button
+            type="button"
+            onClick={handleImportOpen}
+            className="px-3 py-2 text-sm font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+            title="Import content from JSON or HTML"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Import
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard/posts')}
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Back to Entries
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -990,6 +1105,156 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         onRemoveImage={handleRemoveImage}
         onUpdateImage={handleUpdateImage}
       />
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Import Entry</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Paste JSON or HTML content to populate entry fields</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleImportClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-4 flex-1 overflow-y-auto">
+              {/* Textarea for paste */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Paste content
+                </label>
+                <textarea
+                  value={importInput}
+                  onChange={(e) => {
+                    setImportInput(e.target.value)
+                    setImportError(null)
+                    setImportPreview(null)
+                  }}
+                  className="w-full h-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm resize-none"
+                  placeholder='Paste JSON like {"title": "My Entry", "content": "..."} or HTML content'
+                />
+              </div>
+
+              {/* Mode selector and Overwrite toggle */}
+              <div className="flex flex-wrap items-center gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Format:</label>
+                  <select
+                    value={importMode}
+                    onChange={(e) => {
+                      setImportMode(e.target.value as ImportMode)
+                      setImportError(null)
+                      setImportPreview(null)
+                    }}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="auto">Auto-detect</option>
+                    <option value="json">JSON</option>
+                    <option value="html">HTML</option>
+                  </select>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={importOverwrite}
+                    onChange={(e) => {
+                      setImportOverwrite(e.target.checked)
+                      setImportPreview(null)
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Overwrite existing fields</span>
+                </label>
+              </div>
+
+              {/* Parse button */}
+              <button
+                type="button"
+                onClick={handleImportParse}
+                disabled={!importInput.trim()}
+                className="px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Preview Import
+              </button>
+
+              {/* Parse error display */}
+              {importError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-sm text-red-700">{importError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Detected fields preview */}
+              {importPreview && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm font-medium text-green-800">Detected Fields</span>
+                  </div>
+                  <ul className="space-y-1">
+                    {importPreview.summary.map((item, index) => (
+                      <li key={index} className="text-sm text-green-700 flex items-start gap-2">
+                        <span className="text-green-500 mt-1">•</span>
+                        <span className="break-all">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Help text */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <strong>JSON keys recognized:</strong> title, name, heading, excerpt, summary, description, 
+                  coverImageUrl, cover, image, content, body, html, text, status, published
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  <strong>HTML extraction:</strong> First &lt;h1&gt; → title, first &lt;img&gt; → cover image, 
+                  first &lt;p&gt; → excerpt (if short), remaining → content
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+              <button
+                type="button"
+                onClick={handleImportClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleImportApply}
+                disabled={!importPreview}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Apply Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
