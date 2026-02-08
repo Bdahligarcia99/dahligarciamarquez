@@ -8,6 +8,7 @@ import ConditionalAuthProvider from './components/ConditionalAuthProvider'
 import ComingSoonGuard from './components/ComingSoonGuard'
 import Posts from './features/posts/Posts'
 import Dashboard from './features/dashboard/Dashboard'
+import CardBuilderPage from './features/dashboard/CardBuilderPage'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -37,14 +38,16 @@ function AppShell() {
   // Check if current route is dashboard (admin area) or auth page
   const isDashboardRoute = location.pathname.startsWith('/dashboard')
   const isAuthRoute = location.pathname.startsWith('/auth/')
+  const isHomePage = location.pathname === '/'
+  const isCardBuilder = location.pathname.startsWith('/dashboard/card-builder')
 
   return (
     <>
       <div className="min-h-screen bg-secondary-50 flex flex-col">
-        {/* Hide navbar on auth pages */}
-        {!isAuthRoute && <Navbar />}
+        {/* Hide navbar on auth pages and card builder */}
+        {!isAuthRoute && !isCardBuilder && <Navbar />}
 
-        <main className="container mx-auto px-4 py-8 max-w-6xl flex-1">
+        <main className={`flex-1 ${(isHomePage || isCardBuilder) ? '' : 'container mx-auto px-4 py-8 max-w-6xl'}`}>
           
           <Routes>
             <Route path="/" element={<Home />} />
@@ -92,6 +95,18 @@ function AppShell() {
                     <Suspense fallback={<div style={{padding: 16}}>Loading preview...</div>}>
                       <PostPreview />
                     </Suspense>
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* UI Builder - full screen preview */}
+            <Route 
+              path="/dashboard/card-builder/:pageId" 
+              element={
+                <ProtectedRoute requireRole="admin">
+                  <ErrorBoundary>
+                    <CardBuilderPage />
                   </ErrorBoundary>
                 </ProtectedRoute>
               } 

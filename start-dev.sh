@@ -7,7 +7,8 @@
 # ===============================
 
 # Anchor to repo root
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 echo ""
 echo "[One-Click Dev] Cleaning up ports 8080 and 5173 (if any)..."
@@ -21,31 +22,34 @@ for port in 8080 5173; do
     fi
 done
 
-# Server commands
-SERVER_CMD="cd server && [ ! -d node_modules ] && (npm ci || npm i); npm start"
-
-# Client commands  
-CLIENT_CMD="cd client && [ ! -d node_modules ] && (npm ci || npm i); VITE_API_BASE_URL=http://localhost:8080 npm run dev"
-
 echo "[One-Click Dev] Launching SERVER (port 8080) in new terminal..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PWD' && $SERVER_CMD\""
+osascript -e "tell application \"Terminal\"" \
+          -e "activate" \
+          -e "do script \"cd '$SCRIPT_DIR/server' && [ ! -d node_modules ] && (npm ci || npm i); npm start\"" \
+          -e "end tell"
 
 # Add a small delay so logs are readable in order
 sleep 3
 
 echo "[One-Click Dev] Launching CLIENT (Vite) in new terminal..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PWD' && $CLIENT_CMD\""
+osascript -e "tell application \"Terminal\"" \
+          -e "do script \"cd '$SCRIPT_DIR/client' && [ ! -d node_modules ] && (npm ci || npm i); VITE_API_BASE_URL=http://localhost:8080 npm run dev\"" \
+          -e "end tell"
 
 # Add doctor check window (optional)
-DOCTOR_CMD="cd server && sleep 8 && npm run doctor"
 echo "[One-Click Dev] Launching DOCTOR (diagnostics) in new terminal..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PWD' && $DOCTOR_CMD\""
+osascript -e "tell application \"Terminal\"" \
+          -e "do script \"cd '$SCRIPT_DIR/server' && sleep 8 && npm run doctor\"" \
+          -e "end tell"
 
 # Wait a bit for the client to start up, then open browser
 echo "[One-Click Dev] Waiting for Vite dev server to start..."
 sleep 5
 
 echo "[One-Click Dev] Opening browser to http://localhost:5173"
+# Try Microsoft Edge first, fall back to default browser
+open -a "Microsoft Edge" "http://localhost:5173" 2>/dev/null || \
+open -a "Google Chrome" "http://localhost:5173" 2>/dev/null || \
 open "http://localhost:5173"
 
 echo ""

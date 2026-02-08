@@ -11,7 +11,10 @@ import "../styles/nav.css";
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
-  const { isHidden } = useNavbarSettings();
+  const { isHidden, getNavItem } = useNavbarSettings();
+  
+  // Get dynamic labels from navbar settings
+  const getLabel = (id, fallback) => getNavItem(id)?.label || fallback;
   
   // Get Supabase auth state if available
   let user = null;
@@ -59,10 +62,10 @@ export default function Navbar() {
         </Link>
 
         <nav className="links-desktop" aria-label="Primary">
-          {!isHidden('home') && <NavLink to="/" className="link">Home</NavLink>}
-          {!isHidden('journals') && <NavLink to="/blog" className="link">Journals</NavLink>}
-          {!isHidden('about') && <NavLink to="/about" className="link">About</NavLink>}
-          {!isHidden('contact') && <NavLink to="/contact" className="link">Contact</NavLink>}
+          {!isHidden('home') && <NavLink to="/" className="link">{getLabel('home', 'Home')}</NavLink>}
+          {!isHidden('journals') && <NavLink to="/blog" className="link">{getLabel('journals', 'Journals')}</NavLink>}
+          {!isHidden('about') && <NavLink to="/about" className="link">{getLabel('about', 'About')}</NavLink>}
+          {!isHidden('contact') && <NavLink to="/contact" className="link">{getLabel('contact', 'Contact')}</NavLink>}
           {isAdmin && <NavLink to="/dashboard" className="link">Dashboard</NavLink>}
         </nav>
 
@@ -86,10 +89,10 @@ export default function Navbar() {
         aria-hidden={!open}
         aria-label="Primary"
       >
-        {!isHidden('home') && <NavLink to="/" className="panel-link" onClick={onNav}>Home</NavLink>}
-        {!isHidden('journals') && <NavLink to="/blog" className="panel-link" onClick={onNav}>Journals</NavLink>}
-        {!isHidden('about') && <NavLink to="/about" className="panel-link" onClick={onNav}>About</NavLink>}
-        {!isHidden('contact') && <NavLink to="/contact" className="panel-link" onClick={onNav}>Contact</NavLink>}
+        {!isHidden('home') && <NavLink to="/" className="panel-link" onClick={onNav}>{getLabel('home', 'Home')}</NavLink>}
+        {!isHidden('journals') && <NavLink to="/blog" className="panel-link" onClick={onNav}>{getLabel('journals', 'Journals')}</NavLink>}
+        {!isHidden('about') && <NavLink to="/about" className="panel-link" onClick={onNav}>{getLabel('about', 'About')}</NavLink>}
+        {!isHidden('contact') && <NavLink to="/contact" className="panel-link" onClick={onNav}>{getLabel('contact', 'Contact')}</NavLink>}
         {isAdmin && <NavLink to="/dashboard" className="panel-link" onClick={onNav}>Dashboard</NavLink>}
         {user ? (
           <span className="panel-link" style={{ cursor: 'default', color: '#6b7280' }}>

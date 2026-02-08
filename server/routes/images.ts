@@ -669,32 +669,248 @@ function extractImagesFromContent(content: any, post: any, images: any[]) {
   })
 }
 
+// GET /api/images/duplicates - Admin only: scan for duplicate image URLs
+router.get('/duplicates', requireSupabaseAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Scanning for duplicate image URLs...')
+    
+    // Use Supabase Admin client (same as posts API)
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
+    const supabaseAdmin = getSupabaseAdmin()
+    
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'Supabase admin client not configured' })
+    }
+    
+    // Check if post_images table exists by trying to query it
+    const { data: tableCheck, error: tableError } = await supabaseAdmin
+      .from('post_images')
+      .select('id')
+      .limit(1)
+    
+    if (tableError && tableError.message?.includes('does not exist')) {
+      console.log('⚠️ post_images table does not exist')
+      return res.json({
+        duplicates: [],
+        stats: {
+          totalDuplicateUrls: 0,
+          trueDuplicates: 0,
+          sharedImages: 0,
+          potentialSavings: 0
+        },
+        message: 'Image tracking table not found. Run reconciliation first to build the image index.'
+      })
+    }
+    
+    // Get all post_images to analyze duplicates
+    const { data: allImages, error: imagesError } = await supabaseAdmin
+      .from('post_images')
+      .select('id, post_id, image_url')
+      .not('image_url', 'is', null)
+    
+    if (imagesError) {
+      throw new Error(`Failed to fetch images: ${imagesError.message}`)
+    }
+    
+    // Group by URL to find duplicates
+    const urlGroups: Record<string, { ids: string[], postIds: Set<string> }> = {}
+    
+    for (const img of allImages || []) {
+      if (!img.image_url) continue
+      
+      if (!urlGroups[img.image_url]) {
+        urlGroups[img.image_url] = { ids: [], postIds: new Set() }
+      }
+      urlGroups[img.image_url].ids.push(img.id)
+      urlGroups[img.image_url].postIds.add(img.post_id)
+    }
+    
+    // Filter to only URLs with multiple occurrences
+    const duplicates = Object.entries(urlGroups)
+      .filter(([_, group]) => group.ids.length > 1)
+      .map(([url, group]) => ({
+        image_url: url,
+        total_count: group.ids.length,
+        unique_posts: group.postIds.size,
+        post_ids: Array.from(group.postIds),
+        image_ids: group.ids
+      }))
+      .sort((a, b) => b.total_count - a.total_count)
+    
+    // Get post titles for context
+    const postIds = [...new Set(duplicates.flatMap(d => d.post_ids))]
+    let postTitles: Record<string, string> = {}
+    
+    if (postIds.length > 0) {
+      const { data: posts } = await supabaseAdmin
+        .from('posts')
+        .select('id, title')
+        .in('id', postIds)
+      
+      for (const post of posts || []) {
+        postTitles[post.id] = post.title
+      }
+    }
+    
+    // Calculate stats
+    const trueDuplicates = duplicates.filter(d => d.total_count > d.unique_posts)
+    const sharedImages = duplicates.filter(d => d.unique_posts > 1)
+    
+    // Format response with enriched data
+    const formattedDuplicates = duplicates.map(d => ({
+      url: d.image_url,
+      totalCount: d.total_count,
+      uniquePosts: d.unique_posts,
+      isDuplicate: d.total_count > d.unique_posts, // Same URL appears multiple times in same post
+      isShared: d.unique_posts > 1, // Same URL used across different posts
+      posts: d.post_ids.map((id: string) => ({
+        id,
+        title: postTitles[id] || 'Unknown'
+      })),
+      imageIds: d.image_ids
+    }))
+    
+    console.log(`✅ Found ${duplicates.length} URLs with multiple occurrences, ${trueDuplicates.length} true duplicates`)
+    
+    res.json({
+      duplicates: formattedDuplicates,
+      stats: {
+        totalDuplicateUrls: duplicates.length,
+        trueDuplicates: trueDuplicates.length, // Same URL repeated in same post
+        sharedImages: sharedImages.length, // Same URL used in different posts (valid)
+        potentialSavings: trueDuplicates.reduce((sum, d) => 
+          sum + (d.total_count - d.unique_posts), 0
+        )
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('❌ Error scanning for duplicates:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/images/deduplicate - Admin only: remove duplicate image records
+router.post('/deduplicate', requireSupabaseAdmin, async (req, res) => {
+  try {
+    console.log('🧹 Starting image deduplication...')
+    
+    // Use Supabase Admin client
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
+    const supabaseAdmin = getSupabaseAdmin()
+    
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'Supabase admin client not configured' })
+    }
+    
+    const { dryRun = true } = req.body
+    
+    // Check if post_images table exists
+    const { error: tableError } = await supabaseAdmin
+      .from('post_images')
+      .select('id')
+      .limit(1)
+    
+    if (tableError && tableError.message?.includes('does not exist')) {
+      return res.json({
+        success: true,
+        dryRun,
+        stats: {
+          duplicateGroups: 0,
+          recordsKept: 0,
+          recordsRemoved: 0
+        },
+        message: 'Image tracking table not found. Run reconciliation first to build the image index.'
+      })
+    }
+    
+    // Get all images to find true duplicates (same URL + same post_id)
+    const { data: allImages, error: imagesError } = await supabaseAdmin
+      .from('post_images')
+      .select('id, post_id, image_url, created_at')
+      .not('image_url', 'is', null)
+      .order('created_at', { ascending: true })
+    
+    if (imagesError) {
+      throw new Error(`Failed to fetch images: ${imagesError.message}`)
+    }
+    
+    // Group by URL + post_id to find true duplicates
+    const groups: Record<string, { ids: string[], count: number }> = {}
+    
+    for (const img of allImages || []) {
+      if (!img.image_url) continue
+      const key = `${img.image_url}::${img.post_id}`
+      
+      if (!groups[key]) {
+        groups[key] = { ids: [], count: 0 }
+      }
+      groups[key].ids.push(img.id)
+      groups[key].count++
+    }
+    
+    // Find groups with more than 1 (true duplicates)
+    const duplicateGroups = Object.values(groups).filter(g => g.count > 1)
+    let removedCount = 0
+    let keptCount = 0
+    const removedIds: string[] = []
+    
+    for (const group of duplicateGroups) {
+      // Keep the first one (oldest), remove the rest
+      const [keepId, ...removeIds] = group.ids
+      keptCount++
+      
+      if (!dryRun && removeIds.length > 0) {
+        for (const id of removeIds) {
+          const { error: deleteError } = await supabaseAdmin
+            .from('post_images')
+            .delete()
+            .eq('id', id)
+          
+          if (!deleteError) {
+            removedCount++
+            removedIds.push(id)
+          }
+        }
+      } else {
+        removedCount += removeIds.length
+        removedIds.push(...removeIds)
+      }
+    }
+    
+    console.log(`✅ Deduplication ${dryRun ? '(dry run)' : ''}: ${removedCount} duplicates ${dryRun ? 'would be' : ''} removed, ${keptCount} kept`)
+    
+    res.json({
+      success: true,
+      dryRun,
+      stats: {
+        duplicateGroups: duplicateGroups.length,
+        recordsKept: keptCount,
+        recordsRemoved: removedCount,
+        removedIds: dryRun ? removedIds : undefined
+      },
+      message: dryRun 
+        ? `Found ${removedCount} duplicate records that would be removed. Run with dryRun=false to remove them.`
+        : `Successfully removed ${removedCount} duplicate records.`
+    })
+    
+  } catch (error: any) {
+    console.error('❌ Deduplication failed:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // POST /api/images/reconcile - Admin only: full reconciliation (monthly maintenance)
 router.post('/reconcile', requireSupabaseAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting full image reconciliation...')
     
-    // Use direct PostgreSQL
-    const { query } = await import('../src/db.js')
+    // Use Supabase Admin client (same as posts API)
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
+    const supabaseAdmin = getSupabaseAdmin()
     
-    // Create reconciliation log entry
-    let reconciliationId: number
-    try {
-      const logResult = await query(`
-        INSERT INTO image_reconciliation_log (status, triggered_by)
-        VALUES ('running', 'manual')
-        RETURNING id
-      `)
-      reconciliationId = logResult.rows[0].id
-      console.log(`✅ Started reconciliation ${reconciliationId}`)
-    } catch (error: any) {
-      if (error.message?.includes('does not exist')) {
-        console.log('⚠️ image_reconciliation_log table does not exist, proceeding without logging')
-        reconciliationId = Date.now() // Use timestamp as fallback ID
-      } else {
-        console.error('Failed to log reconciliation start:', error)
-        return res.status(500).json({ error: 'Failed to start reconciliation' })
-      }
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'Supabase admin client not configured' })
     }
     
     let stats = {
@@ -706,106 +922,178 @@ router.post('/reconcile', requireSupabaseAdmin, async (req, res) => {
     }
     
     try {
-      // Get all posts with content using direct PostgreSQL
-      const postsResult = await query(`
-        SELECT id, title, cover_image_url, content_rich 
-        FROM posts
-      `)
+      // Get all posts with content using Supabase
+      const { data: posts, error: postsError } = await supabaseAdmin
+        .from('posts')
+        .select('id, title, cover_image_url, content_rich')
       
-      const posts = postsResult.rows || []
-      console.log(`Processing ${posts.length} posts...`)
-      
-      // Import the image tracking service
-      const { imageTrackingService } = await import('../src/services/imageTrackingService.js')
-      
-      // Process each post
-      for (const post of posts) {
-        try {
-          const result = await imageTrackingService.syncPostImages(
-            post.id, 
-            post.content_rich, 
-            post.cover_image_url
-          )
-          
-          stats.posts_processed++
-          stats.images_found += result.images_found.length
-          stats.images_added += result.images_added
-          stats.images_updated += result.images_updated
-          stats.images_removed += result.images_removed
-          
-          if (stats.posts_processed % 10 === 0) {
-            console.log(`Processed ${stats.posts_processed}/${posts.length} posts...`)
-          }
-        } catch (postError) {
-          console.error(`Failed to process post ${post.id}:`, postError)
-          // Continue with other posts
-        }
+      if (postsError) {
+        console.error('❌ Failed to fetch posts:', postsError)
+        throw new Error(`Failed to fetch posts: ${postsError.message}`)
       }
       
-      // Update reconciliation log with success (if table exists)
-      try {
-        await query(`
-          UPDATE image_reconciliation_log 
-          SET status = 'completed',
-              completed_at = NOW(),
-              posts_processed = $1,
-              images_found = $2,
-              images_added = $3,
-              images_updated = $4,
-              images_removed = $5
-          WHERE id = $6
-        `, [
-          stats.posts_processed,
-          stats.images_found,
-          stats.images_added,
-          stats.images_updated,
-          stats.images_removed,
-          reconciliationId
-        ])
-      } catch (updateError: any) {
-        if (!updateError.message?.includes('does not exist')) {
-          console.error('Failed to update reconciliation log:', updateError)
+      console.log(`📊 Found ${posts?.length || 0} posts to process`)
+      
+      // Helper function to extract images from TipTap content
+      const extractImagesFromContent = (content: any): Array<{url: string, alt?: string}> => {
+        const images: Array<{url: string, alt?: string}> = []
+        
+        if (!content || typeof content !== 'object') return images
+        
+        if (Array.isArray(content)) {
+          content.forEach(item => {
+            images.push(...extractImagesFromContent(item))
+          })
+          return images
+        }
+        
+        // Handle image nodes
+        if (content.type === 'image' && content.attrs?.src) {
+          images.push({
+            url: content.attrs.src,
+            alt: content.attrs.alt || null
+          })
+        }
+        
+        // Recursively check nested content
+        if (content.content) {
+          images.push(...extractImagesFromContent(content.content))
+        }
+        
+        return images
+      }
+      
+      // Check if post_images table exists, create if not
+      const { error: tableCheckError } = await supabaseAdmin
+        .from('post_images')
+        .select('id')
+        .limit(1)
+      
+      if (tableCheckError && tableCheckError.message?.includes('does not exist')) {
+        console.log('⚠️ post_images table does not exist in Supabase.')
+        console.log('   Please run the migration SQL to create it.')
+        // Continue anyway - we'll just track what we find
+      }
+      
+      // Process each post using Supabase
+      for (const post of posts || []) {
+        try {
+          const imagesForPost: Array<{url: string, type: string, alt?: string}> = []
+          
+          // Add cover image
+          if (post.cover_image_url) {
+            imagesForPost.push({
+              url: post.cover_image_url,
+              type: 'cover',
+              alt: null
+            })
+          }
+          
+          // Extract inline images from content
+          if (post.content_rich) {
+            const inlineImages = extractImagesFromContent(post.content_rich)
+            inlineImages.forEach(img => {
+              imagesForPost.push({
+                url: img.url,
+                type: 'inline',
+                alt: img.alt
+              })
+            })
+          }
+          
+          stats.images_found += imagesForPost.length
+          
+          // Get existing images for this post from Supabase
+          const { data: existing, error: existingError } = await supabaseAdmin
+            .from('post_images')
+            .select('id, image_url, image_type')
+            .eq('post_id', post.id)
+          
+          if (existingError && !existingError.message?.includes('does not exist')) {
+            console.warn(`  ⚠️ Could not fetch existing images for post ${post.id}`)
+          }
+          
+          const existingImages = existing || []
+          
+          // Find images to add
+          for (const img of imagesForPost) {
+            const exists = existingImages.some(e => e.image_url === img.url && e.image_type === img.type)
+            if (!exists) {
+              const { error: insertError } = await supabaseAdmin
+                .from('post_images')
+                .insert({
+                  post_id: post.id,
+                  image_url: img.url,
+                  image_type: img.type,
+                  alt_text: img.alt
+                })
+              
+              if (insertError && !insertError.message?.includes('does not exist')) {
+                console.warn(`  ⚠️ Could not insert image: ${insertError.message}`)
+              } else if (!insertError) {
+                stats.images_added++
+              }
+            }
+          }
+          
+          // Find images to remove (in DB but not in content)
+          for (const existingImg of existingImages) {
+            const stillExists = imagesForPost.some(img => 
+              img.url === existingImg.image_url && img.type === existingImg.image_type
+            )
+            if (!stillExists) {
+              const { error: deleteError } = await supabaseAdmin
+                .from('post_images')
+                .delete()
+                .eq('id', existingImg.id)
+              
+              if (!deleteError) {
+                stats.images_removed++
+              }
+            }
+          }
+          
+          stats.posts_processed++
+          
+          if (stats.posts_processed % 5 === 0) {
+            console.log(`  📝 Processed ${stats.posts_processed}/${(posts || []).length} posts...`)
+          }
+        } catch (postError: any) {
+          console.error(`❌ Failed to process post ${post.id}:`, postError.message)
+          // Continue with other posts
         }
       }
       
       console.log('✅ Reconciliation completed:', stats)
       
+      // Log the reconciliation run
+      const logEntry = {
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        status: 'completed',
+        posts_processed: stats.posts_processed,
+        images_found: stats.images_found,
+        images_added: stats.images_added,
+        images_removed: stats.images_removed
+      }
+      
+      const { error: logError } = await supabaseAdmin
+        .from('image_reconciliation_log')
+        .insert(logEntry)
+      
+      if (logError) {
+        console.log('⚠️ Could not log reconciliation (table may not exist):', logError.message)
+        // This is non-fatal, continue
+      }
+      
       res.json({
         success: true,
         message: 'Image reconciliation completed successfully',
-        stats,
-        reconciliation_id: reconciliationId
+        stats
       })
       
-    } catch (error) {
-      // Update reconciliation log with failure (if table exists)
-      try {
-        await query(`
-          UPDATE image_reconciliation_log 
-          SET status = 'failed',
-              completed_at = NOW(),
-              error_message = $1,
-              posts_processed = $2,
-              images_found = $3,
-              images_added = $4,
-              images_updated = $5,
-              images_removed = $6
-          WHERE id = $7
-        `, [
-          error instanceof Error ? error.message : 'Unknown error',
-          stats.posts_processed,
-          stats.images_found,
-          stats.images_added,
-          stats.images_updated,
-          stats.images_removed,
-          reconciliationId
-        ])
-      } catch (updateError: any) {
-        if (!updateError.message?.includes('does not exist')) {
-          console.error('Failed to update reconciliation log with error:', updateError)
-        }
-      }
-      
+    } catch (error: any) {
+      console.error('❌ Reconciliation inner error:', error)
       throw error
     }
     
@@ -823,56 +1111,72 @@ router.get('/reconcile/status', requireSupabaseAdmin, async (req, res) => {
   try {
     console.log('🔍 Reconciliation status endpoint called')
     
-    // Try direct PostgreSQL approach
-    const { query } = await import('../src/db.js')
+    // Use Supabase Admin client
+    const { getSupabaseAdmin } = await import('../auth/supabaseAdmin.ts')
+    const supabaseAdmin = getSupabaseAdmin()
+    
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'Supabase admin client not configured' })
+    }
     
     let logs: any[] = []
     let totalImages = 0
     let totalPosts = 0
     
     // Get reconciliation logs (if table exists)
-    try {
-      const logsResult = await query(`
-        SELECT * FROM image_reconciliation_log 
-        ORDER BY started_at DESC 
-        LIMIT 10
-      `)
-      logs = logsResult.rows || []
+    const { data: logsData, error: logsError } = await supabaseAdmin
+      .from('image_reconciliation_log')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(10)
+    
+    if (!logsError) {
+      logs = logsData || []
       console.log(`✅ Found ${logs.length} reconciliation logs`)
-    } catch (error: any) {
-      if (error.message?.includes('does not exist')) {
-        console.log('⚠️ image_reconciliation_log table does not exist')
-      } else {
-        console.error('❌ Error fetching reconciliation logs:', error)
-      }
+    } else if (logsError.message?.includes('does not exist')) {
+      console.log('⚠️ image_reconciliation_log table does not exist')
+    } else {
+      console.error('❌ Error fetching reconciliation logs:', logsError)
     }
     
-    // Get current system stats
-    try {
-      const postsResult = await query('SELECT COUNT(*) as count FROM posts')
-      totalPosts = parseInt(postsResult.rows[0]?.count || '0')
-      
-      const imagesResult = await query('SELECT COUNT(*) as count FROM post_images')
-      totalImages = parseInt(imagesResult.rows[0]?.count || '0')
-    } catch (error: any) {
-      if (error.message?.includes('does not exist')) {
-        console.log('⚠️ Some tables do not exist, using fallback stats')
-        // Use fallback method to count posts
-        try {
-          const postsResult = await query('SELECT COUNT(*) as count FROM posts')
-          totalPosts = parseInt(postsResult.rows[0]?.count || '0')
-        } catch (e) {
-          console.log('⚠️ Could not count posts')
-        }
-      } else {
-        console.error('❌ Error fetching system stats:', error)
-      }
+    // Get current system stats - count posts
+    const { count: postsCount, error: postsError } = await supabaseAdmin
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+    
+    if (!postsError) {
+      totalPosts = postsCount || 0
+    }
+    
+    // Count post_images
+    const { count: imagesCount, error: imagesError } = await supabaseAdmin
+      .from('post_images')
+      .select('*', { count: 'exact', head: true })
+    
+    if (!imagesError) {
+      totalImages = imagesCount || 0
+    } else if (imagesError.message?.includes('does not exist')) {
+      console.log('⚠️ post_images table does not exist')
     }
     
     const lastReconciliation = logs[0] || null
-    const needsReconciliation = !lastReconciliation || 
-      (lastReconciliation.status === 'failed') ||
-      (new Date().getTime() - new Date(lastReconciliation.started_at).getTime() > 30 * 24 * 60 * 60 * 1000) // 30 days
+    
+    // Determine if reconciliation is needed:
+    // - If we have logs and the last one succeeded recently (within 30 days), we're good
+    // - If we have no logs but we DO have tracked images, we're probably okay (recon ran but table didn't exist)
+    // - If we have no logs AND no tracked images, we need reconciliation
+    let needsReconciliation = true
+    
+    if (lastReconciliation && lastReconciliation.status === 'completed') {
+      const daysSinceLastRun = (new Date().getTime() - new Date(lastReconciliation.started_at).getTime()) / (24 * 60 * 60 * 1000)
+      needsReconciliation = daysSinceLastRun > 30
+    } else if (!lastReconciliation && totalImages > 0) {
+      // No log but we have images tracked - reconciliation has been run
+      needsReconciliation = false
+    } else if (!lastReconciliation && totalPosts > 0 && totalImages === 0) {
+      // We have posts but no tracked images - definitely need reconciliation
+      needsReconciliation = true
+    }
     
     console.log(`✅ Reconciliation status: posts=${totalPosts}, images=${totalImages}, needs_reconciliation=${needsReconciliation}`)
     

@@ -527,6 +527,7 @@ const ImageItem: React.FC<{
   onCompressionSettingChange,
   onCompressImage
 }) => {
+  const [showFullUrl, setShowFullUrl] = useState(false)
   const warning = getImageWarning(image.metadata, image.health)
   
   // Helper function to determine if data should be displayed full-width
@@ -606,16 +607,30 @@ const ImageItem: React.FC<{
             </div>
           </div>
           
-          {/* URL - Full width if long */}
-          <div className={urlNeedsFullWidth ? "w-full" : ""}>
-            <p className="text-xs text-gray-600 mb-1">URL:</p>
-            <div className="text-xs bg-gray-50 rounded px-2 py-1 font-mono text-gray-700">
-              {smartLayout ? (
+          {/* URL - Full width if long, with Show more option */}
+          <div className="w-full">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-gray-600">URL:</p>
+              {image.url.length > 30 && (
+                <button
+                  onClick={() => setShowFullUrl(!showFullUrl)}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  {showFullUrl ? 'Show less' : 'Show more'}
+                </button>
+              )}
+            </div>
+            <div 
+              className="text-xs bg-gray-50 rounded px-2 py-1 font-mono text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => onCopyUrl(image.url)}
+              title="Click to copy URL"
+            >
+              {showFullUrl || smartLayout ? (
                 <span className="break-all">{image.url}</span>
               ) : (
                 <TruncatedText
                   text={image.url}
-                  maxLength={20}
+                  maxLength={30}
                   className="font-mono text-xs text-gray-700"
                 />
               )}

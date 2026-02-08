@@ -15,7 +15,7 @@ export const BRAND_IMAGES = {
   'footer-logo': '',      // Logo in footer (can be same as header or variant)
   
   // Home page
-  'hero-banner': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2000&h=1200&fit=crop',  // Hero banner image on home page
+  'hero-banner': '',  // Hero banner image on home page - now managed via Web UI wallpaper settings
   
   // About page
   'profile-image': '',    // Circular profile photo on About page (recommended: square, 200x200px+)
