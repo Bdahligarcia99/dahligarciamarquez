@@ -93,6 +93,17 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const [availableCollections, setAvailableCollections] = useState<CollectionForPicker[]>([])
   const [selectedCollections, setSelectedCollections] = useState<string[]>([])
   const [curatorLoading, setCuratorLoading] = useState(false)
+  
+  // Inline creation state
+  const [showNewJournalForm, setShowNewJournalForm] = useState(false)
+  const [showNewCollectionForm, setShowNewCollectionForm] = useState(false)
+  const [newJournalName, setNewJournalName] = useState('')
+  const [newJournalEmoji, setNewJournalEmoji] = useState('📚')
+  const [newCollectionName, setNewCollectionName] = useState('')
+  const [newCollectionEmoji, setNewCollectionEmoji] = useState('📁')
+  const [newCollectionJournalId, setNewCollectionJournalId] = useState('')
+  const [creatingJournal, setCreatingJournal] = useState(false)
+  const [creatingCollection, setCreatingCollection] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -299,6 +310,119 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         setError('Failed to update collection assignment')
         setTimeout(() => setError(null), 3000)
       }
+    }
+  }
+
+  // Create new journal inline
+  const createJournalInline = async () => {
+    if (!newJournalName.trim()) return
+    
+    setCreatingJournal(true)
+    try {
+      const supabase = getSupabaseClient()
+      const { data: userData } = await supabase.auth.getUser()
+      
+      if (!userData.user) {
+        throw new Error('Must be logged in to create a journal')
+      }
+      
+      const { data, error } = await supabase
+        .from('journals')
+        .insert({
+          name: newJournalName.trim(),
+          icon_emoji: newJournalEmoji || '📚',
+          icon_type: 'emoji',
+          owner_id: userData.user.id,
+          status: 'draft'
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // Refresh the journals list
+      await fetchCuratorData()
+      
+      // Auto-select the new journal
+      if (data?.id) {
+        setSelectedJournals(prev => [...prev, data.id])
+        
+        // If editing existing post, add to journal immediately
+        if (postId) {
+          await supabase.rpc('add_post_to_journal', {
+            p_journal_id: data.id,
+            p_post_id: postId
+          })
+        }
+      }
+      
+      // Reset form
+      setNewJournalName('')
+      setNewJournalEmoji('📚')
+      setShowNewJournalForm(false)
+      
+      setSuccessMessage('Journal created!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      console.error('Error creating journal:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create journal')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setCreatingJournal(false)
+    }
+  }
+
+  // Create new collection inline
+  const createCollectionInline = async () => {
+    if (!newCollectionName.trim() || !newCollectionJournalId) return
+    
+    setCreatingCollection(true)
+    try {
+      const supabase = getSupabaseClient()
+      
+      const { data, error } = await supabase
+        .from('collections')
+        .insert({
+          name: newCollectionName.trim(),
+          icon_emoji: newCollectionEmoji || '📁',
+          journal_id: newCollectionJournalId,
+          status: 'draft'
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // Refresh the collections list
+      await fetchCuratorData()
+      
+      // Auto-select the new collection
+      if (data?.id) {
+        setSelectedCollections(prev => [...prev, data.id])
+        
+        // If editing existing post, add to collection immediately
+        if (postId) {
+          await supabase.rpc('add_post_to_collection', {
+            p_collection_id: data.id,
+            p_post_id: postId
+          })
+        }
+      }
+      
+      // Reset form
+      setNewCollectionName('')
+      setNewCollectionEmoji('📁')
+      setNewCollectionJournalId('')
+      setShowNewCollectionForm(false)
+      
+      setSuccessMessage('Collection created!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      console.error('Error creating collection:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create collection')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setCreatingCollection(false)
     }
   }
 
@@ -1233,12 +1357,75 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           </div>
 
           {/* Journals Section */}
-          {availableJournals.length > 0 && (
-            <div className="border border-gray-200 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="border border-gray-200 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-600">Journals</span>
                 <span className="text-xs text-gray-400">(direct assignment)</span>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowNewJournalForm(!showNewJournalForm)}
+                className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New
+              </button>
+            </div>
+            
+            {/* Inline Journal Creation Form */}
+            {showNewJournalForm && (
+              <div className="mb-3 p-2 bg-purple-50 rounded-lg border border-purple-200">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newJournalEmoji}
+                    onChange={(e) => setNewJournalEmoji(e.target.value)}
+                    className="w-10 px-2 py-1 text-center border border-gray-300 rounded text-sm"
+                    maxLength={2}
+                    title="Emoji icon"
+                  />
+                  <input
+                    type="text"
+                    value={newJournalName}
+                    onChange={(e) => setNewJournalName(e.target.value)}
+                    placeholder="Journal name..."
+                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        createJournalInline()
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={createJournalInline}
+                    disabled={!newJournalName.trim() || creatingJournal}
+                    className="px-2 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creatingJournal ? '...' : 'Add'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewJournalForm(false)
+                      setNewJournalName('')
+                      setNewJournalEmoji('📚')
+                    }}
+                    className="px-2 py-1 text-gray-500 hover:text-gray-700"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {availableJournals.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {availableJournals.map((journal) => (
                   <button
@@ -1257,16 +1444,101 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            ) : !curatorLoading ? (
+              <p className="text-xs text-gray-500 italic">No journals yet. Create one above!</p>
+            ) : null}
+          </div>
 
           {/* Collections Section */}
-          {availableCollections.length > 0 ? (
-            <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/30">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/30">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-600">Collections</span>
                 <span className="text-xs text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">recommended</span>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowNewCollectionForm(!showNewCollectionForm)}
+                disabled={availableJournals.length === 0}
+                className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={availableJournals.length === 0 ? 'Create a journal first' : 'Create new collection'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New
+              </button>
+            </div>
+            
+            {/* Inline Collection Creation Form */}
+            {showNewCollectionForm && (
+              <div className="mb-3 p-2 bg-blue-100 rounded-lg border border-blue-200">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newCollectionEmoji}
+                      onChange={(e) => setNewCollectionEmoji(e.target.value)}
+                      className="w-10 px-2 py-1 text-center border border-gray-300 rounded text-sm"
+                      maxLength={2}
+                      title="Emoji icon"
+                    />
+                    <input
+                      type="text"
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      placeholder="Collection name..."
+                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newCollectionJournalId) {
+                          e.preventDefault()
+                          createCollectionInline()
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewCollectionForm(false)
+                        setNewCollectionName('')
+                        setNewCollectionEmoji('📁')
+                        setNewCollectionJournalId('')
+                      }}
+                      className="px-2 py-1 text-gray-500 hover:text-gray-700"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600">in:</span>
+                    <select
+                      value={newCollectionJournalId}
+                      onChange={(e) => setNewCollectionJournalId(e.target.value)}
+                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">Select a journal...</option>
+                      {availableJournals.map((journal) => (
+                        <option key={journal.journal_id} value={journal.journal_id}>
+                          {journal.journal_icon_emoji} {journal.journal_name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={createCollectionInline}
+                      disabled={!newCollectionName.trim() || !newCollectionJournalId || creatingCollection}
+                      className="px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {creatingCollection ? '...' : 'Add'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {availableCollections.length > 0 ? (
               <div className="space-y-3">
                 {/* Group collections by journal for display */}
                 {Object.entries(
@@ -1310,12 +1582,14 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                   </div>
                 ))}
               </div>
-            </div>
-          ) : !curatorLoading && availableJournals.length === 0 ? (
-            <div className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded-lg border border-gray-200">
-              No journals or collections available. Create them in the Curator to organize your entries.
-            </div>
-          ) : null}
+            ) : !curatorLoading ? (
+              <p className="text-xs text-gray-500 italic">
+                {availableJournals.length === 0 
+                  ? 'Create a journal first, then add collections to it.' 
+                  : 'No collections yet. Create one above!'}
+              </p>
+            ) : null}
+          </div>
 
           {/* Helper text */}
           <p className="text-xs text-gray-500">
