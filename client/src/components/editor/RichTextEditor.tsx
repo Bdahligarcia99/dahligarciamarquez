@@ -5,7 +5,7 @@ import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
-import { useState, useImperativeHandle, forwardRef } from 'react'
+import { useState, useImperativeHandle, forwardRef, useRef, useEffect } from 'react'
 import { supabase, getSessionToken, isSupabaseConfigured } from '../../lib/supabase'
 import { API_MISCONFIGURED } from '../../lib/api'
 import ImagePicker from './ImagePicker'
@@ -48,6 +48,37 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ con
     }
     return '100%'
   })
+  
+  // Track actual pixel dimensions
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+  const [pixelDimensions, setPixelDimensions] = useState({ width: 0, height: 0 })
+  
+  // Use ResizeObserver to track actual pixel dimensions
+  useEffect(() => {
+    const container = editorContainerRef.current
+    if (!container) return
+    
+    const updateDimensions = () => {
+      setPixelDimensions({
+        width: Math.round(container.offsetWidth),
+        height: Math.round(container.offsetHeight)
+      })
+    }
+    
+    // Initial measurement
+    updateDimensions()
+    
+    // Set up ResizeObserver for live updates
+    const resizeObserver = new ResizeObserver(() => {
+      updateDimensions()
+    })
+    
+    resizeObserver.observe(container)
+    
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
   
   // Check if image uploads are available
   const uploadsAvailable = !API_MISCONFIGURED && (isSupabaseConfigured || true) // Server endpoint is always available when API is configured
@@ -453,6 +484,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ con
 
   return (
     <div 
+      ref={editorContainerRef}
       className={`border border-gray-300 rounded-lg mx-auto relative ${className}`}
       style={{ width: editorWidth }}
     >
@@ -692,6 +724,14 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ con
           title="Drag to resize editor width"
         >
           <div className="h-8 w-1 bg-gray-400 rounded-full group-hover:bg-gray-600 transition-colors"></div>
+        </div>
+        
+        {/* Pixel Dimensions Badge */}
+        <div 
+          className="absolute bottom-2 right-8 px-2 py-0.5 bg-gray-800 bg-opacity-75 text-white text-xs font-mono rounded select-none pointer-events-none"
+          style={{ zIndex: 5 }}
+        >
+          {pixelDimensions.width} × {pixelDimensions.height}px
         </div>
         
         {/* Corner Resize Handle (Bottom-Right) */}
