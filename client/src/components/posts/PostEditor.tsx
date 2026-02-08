@@ -47,6 +47,25 @@ interface PostCollection {
   journal_icon_emoji: string
 }
 
+// Journal types for direct journal assignment
+interface JournalForPicker {
+  journal_id: string
+  journal_name: string
+  journal_slug: string
+  journal_icon_emoji: string
+  journal_icon_type: string
+  journal_icon_image_url: string | null
+  journal_status: string
+  entry_count: number
+  collection_count: number
+}
+
+interface PostJournal {
+  journal_id: string
+  journal_name: string
+  journal_icon_emoji: string
+}
+
 interface PostEditorProps {
   postId?: string
   onSave?: (post: any) => void
@@ -68,10 +87,12 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [availableLabels, setAvailableLabels] = useState<Label[]>([])
   
-  // Curator collections state (new labeling system)
+  // Curator state (new labeling system)
+  const [availableJournals, setAvailableJournals] = useState<JournalForPicker[]>([])
+  const [selectedJournals, setSelectedJournals] = useState<string[]>([])
   const [availableCollections, setAvailableCollections] = useState<CollectionForPicker[]>([])
   const [selectedCollections, setSelectedCollections] = useState<string[]>([])
-  const [collectionsLoading, setCollectionsLoading] = useState(false)
+  const [curatorLoading, setCuratorLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -150,34 +171,91 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     }
   }
 
-  // Fetch available collections from Curator system
-  const fetchCollections = async () => {
-    setCollectionsLoading(true)
+  // Fetch available journals and collections from Curator system
+  const fetchCuratorData = async () => {
+    setCuratorLoading(true)
     try {
       const supabase = getSupabaseClient()
-      const { data, error } = await supabase.rpc('get_all_collections_for_picker')
       
-      if (error) throw error
-      setAvailableCollections(data || [])
+      // Fetch both in parallel
+      const [journalsResult, collectionsResult] = await Promise.all([
+        supabase.rpc('get_all_journals_for_picker'),
+        supabase.rpc('get_all_collections_for_picker')
+      ])
+      
+      if (journalsResult.error) throw journalsResult.error
+      if (collectionsResult.error) throw collectionsResult.error
+      
+      setAvailableJournals(journalsResult.data || [])
+      setAvailableCollections(collectionsResult.data || [])
     } catch (error) {
-      console.error('Error fetching collections:', error)
+      console.error('Error fetching curator data:', error)
     } finally {
-      setCollectionsLoading(false)
+      setCuratorLoading(false)
     }
   }
 
-  // Fetch collections for current post
-  const fetchPostCollections = async (postIdToFetch: string) => {
+  // Fetch journals and collections for current post
+  const fetchPostCuratorAssignments = async (postIdToFetch: string) => {
     try {
       const supabase = getSupabaseClient()
-      const { data, error } = await supabase.rpc('get_post_collections', {
-        p_post_id: postIdToFetch
-      })
       
-      if (error) throw error
-      setSelectedCollections((data || []).map((c: PostCollection) => c.collection_id))
+      // Fetch both in parallel
+      const [journalsResult, collectionsResult] = await Promise.all([
+        supabase.rpc('get_post_journals', { p_post_id: postIdToFetch }),
+        supabase.rpc('get_post_collections', { p_post_id: postIdToFetch })
+      ])
+      
+      if (journalsResult.error) throw journalsResult.error
+      if (collectionsResult.error) throw collectionsResult.error
+      
+      setSelectedJournals((journalsResult.data || []).map((j: PostJournal) => j.journal_id))
+      setSelectedCollections((collectionsResult.data || []).map((c: PostCollection) => c.collection_id))
     } catch (error) {
-      console.error('Error fetching post collections:', error)
+      console.error('Error fetching post curator assignments:', error)
+    }
+  }
+
+  // Toggle journal selection
+  const toggleJournal = async (journalId: string) => {
+    const isSelected = selectedJournals.includes(journalId)
+    
+    // Optimistic update
+    if (isSelected) {
+      setSelectedJournals(prev => prev.filter(id => id !== journalId))
+    } else {
+      setSelectedJournals(prev => [...prev, journalId])
+    }
+
+    // If post exists, immediately update in database
+    if (postId) {
+      try {
+        const supabase = getSupabaseClient()
+        
+        if (isSelected) {
+          const { error } = await supabase.rpc('remove_post_from_journal', {
+            p_journal_id: journalId,
+            p_post_id: postId
+          })
+          if (error) throw error
+        } else {
+          const { error } = await supabase.rpc('add_post_to_journal', {
+            p_journal_id: journalId,
+            p_post_id: postId
+          })
+          if (error) throw error
+        }
+      } catch (error) {
+        console.error('Error updating journal:', error)
+        // Revert optimistic update on error
+        if (isSelected) {
+          setSelectedJournals(prev => [...prev, journalId])
+        } else {
+          setSelectedJournals(prev => prev.filter(id => id !== journalId))
+        }
+        setError('Failed to update journal assignment')
+        setTimeout(() => setError(null), 3000)
+      }
     }
   }
 
@@ -198,14 +276,12 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         const supabase = getSupabaseClient()
         
         if (isSelected) {
-          // Remove from collection
           const { error } = await supabase.rpc('remove_post_from_collection', {
             p_collection_id: collectionId,
             p_post_id: postId
           })
           if (error) throw error
         } else {
-          // Add to collection
           const { error } = await supabase.rpc('add_post_to_collection', {
             p_collection_id: collectionId,
             p_post_id: postId
@@ -376,9 +452,23 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         // Create new post
         savedPost = await supabaseAdminPost('/api/posts', postData)
         
-        // Add to selected collections (for new posts)
-        if (selectedCollections.length > 0 && savedPost?.id) {
+        // Add to selected journals and collections (for new posts)
+        if (savedPost?.id) {
           const supabase = getSupabaseClient()
+          
+          // Add to journals
+          for (const journalId of selectedJournals) {
+            try {
+              await supabase.rpc('add_post_to_journal', {
+                p_journal_id: journalId,
+                p_post_id: savedPost.id
+              })
+            } catch (journalError) {
+              console.error('Error adding to journal:', journalError)
+            }
+          }
+          
+          // Add to collections
           for (const collectionId of selectedCollections) {
             try {
               await supabase.rpc('add_post_to_collection', {
@@ -758,10 +848,10 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
 
   useEffect(() => {
     fetchLabels()
-    fetchCollections()
+    fetchCuratorData()
     if (postId) {
       fetchPost()
-      fetchPostCollections(postId)
+      fetchPostCuratorAssignments(postId)
     }
   }, [postId])
 
@@ -1124,70 +1214,113 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           </div>
         </div>
 
-        {/* Collections (Curator Labeling System) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Collections
-            {collectionsLoading && (
-              <span className="ml-2 text-xs text-gray-500">(loading...)</span>
+        {/* Curator Organization (Journals & Collections) */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700">
+              Organization
+              {curatorLoading && (
+                <span className="ml-2 text-xs text-gray-500">(loading...)</span>
+              )}
+            </label>
+            {(selectedJournals.length > 0 || selectedCollections.length > 0) && (
+              <span className="text-xs text-gray-500">
+                {selectedJournals.length > 0 && `${selectedJournals.length} journal${selectedJournals.length !== 1 ? 's' : ''}`}
+                {selectedJournals.length > 0 && selectedCollections.length > 0 && ', '}
+                {selectedCollections.length > 0 && `${selectedCollections.length} collection${selectedCollections.length !== 1 ? 's' : ''}`}
+              </span>
             )}
-          </label>
-          
-          {availableCollections.length > 0 ? (
-            <div className="space-y-3">
-              {/* Group collections by journal */}
-              {Object.entries(
-                availableCollections.reduce((acc, collection) => {
-                  const journalKey = collection.journal_id
-                  if (!acc[journalKey]) {
-                    acc[journalKey] = {
-                      journal_name: collection.journal_name,
-                      journal_icon_emoji: collection.journal_icon_emoji,
-                      journal_icon_type: collection.journal_icon_type,
-                      collections: []
-                    }
-                  }
-                  acc[journalKey].collections.push(collection)
-                  return acc
-                }, {} as Record<string, { journal_name: string; journal_icon_emoji: string; journal_icon_type: string; collections: CollectionForPicker[] }>)
-              ).map(([journalId, journal]) => (
-                <div key={journalId} className="border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-2 text-sm font-medium text-gray-600">
+          </div>
+
+          {/* Journals Section */}
+          {availableJournals.length > 0 && (
+            <div className="border border-gray-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-gray-600">Journals</span>
+                <span className="text-xs text-gray-400">(direct assignment)</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {availableJournals.map((journal) => (
+                  <button
+                    key={journal.journal_id}
+                    type="button"
+                    onClick={() => toggleJournal(journal.journal_id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                      selectedJournals.includes(journal.journal_id)
+                        ? 'bg-purple-100 border-purple-300 text-purple-800'
+                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
+                    }`}
+                  >
                     <span>{journal.journal_icon_emoji || '📚'}</span>
                     <span>{journal.journal_name}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {journal.collections.map((collection) => (
-                      <button
-                        key={collection.collection_id}
-                        type="button"
-                        onClick={() => toggleCollection(collection.collection_id)}
-                        className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
-                          selectedCollections.includes(collection.collection_id)
-                            ? 'bg-blue-100 border-blue-300 text-blue-800'
-                            : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
-                        }`}
-                      >
-                        <span>{collection.collection_icon_emoji || '📁'}</span>
-                        <span>{collection.collection_name}</span>
-                        <span className="text-xs opacity-60">({collection.entry_count})</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : !collectionsLoading ? (
-            <div className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded-lg border border-gray-200">
-              No collections available. Create collections in the Curator to organize your entries.
-            </div>
-          ) : null}
-          
-          {selectedCollections.length > 0 && (
-            <div className="mt-2 text-xs text-gray-500">
-              {selectedCollections.length} collection{selectedCollections.length !== 1 ? 's' : ''} selected
+                    <span className="text-xs opacity-60">({journal.entry_count})</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Collections Section */}
+          {availableCollections.length > 0 ? (
+            <div className="border border-blue-200 rounded-lg p-3 bg-blue-50/30">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-gray-600">Collections</span>
+                <span className="text-xs text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">recommended</span>
+              </div>
+              <div className="space-y-3">
+                {/* Group collections by journal for display */}
+                {Object.entries(
+                  availableCollections.reduce((acc, collection) => {
+                    const journalKey = collection.journal_id
+                    if (!acc[journalKey]) {
+                      acc[journalKey] = {
+                        journal_name: collection.journal_name,
+                        journal_icon_emoji: collection.journal_icon_emoji,
+                        journal_icon_type: collection.journal_icon_type,
+                        collections: []
+                      }
+                    }
+                    acc[journalKey].collections.push(collection)
+                    return acc
+                  }, {} as Record<string, { journal_name: string; journal_icon_emoji: string; journal_icon_type: string; collections: CollectionForPicker[] }>)
+                ).map(([journalId, journal]) => (
+                  <div key={journalId}>
+                    <div className="flex items-center gap-1.5 mb-1.5 text-xs text-gray-500">
+                      <span>{journal.journal_icon_emoji || '📚'}</span>
+                      <span>{journal.journal_name}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 ml-4">
+                      {journal.collections.map((collection) => (
+                        <button
+                          key={collection.collection_id}
+                          type="button"
+                          onClick={() => toggleCollection(collection.collection_id)}
+                          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                            selectedCollections.includes(collection.collection_id)
+                              ? 'bg-blue-100 border-blue-300 text-blue-800'
+                              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                          }`}
+                        >
+                          <span>{collection.collection_icon_emoji || '📁'}</span>
+                          <span>{collection.collection_name}</span>
+                          <span className="text-xs opacity-60">({collection.entry_count})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : !curatorLoading && availableJournals.length === 0 ? (
+            <div className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded-lg border border-gray-200">
+              No journals or collections available. Create them in the Curator to organize your entries.
+            </div>
+          ) : null}
+
+          {/* Helper text */}
+          <p className="text-xs text-gray-500">
+            Entries can belong to multiple journals and/or collections. Collections are recommended for better organization.
+          </p>
         </div>
 
         {/* Legacy Labels (if any exist) */}
