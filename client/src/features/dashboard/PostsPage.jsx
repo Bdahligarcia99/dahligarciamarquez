@@ -1,6 +1,6 @@
 // client/src/features/dashboard/PostsPage.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabaseAdminGet, supabaseAdminDelete, supabaseAdminPatch } from '../../lib/api'
 import { isHTTPError } from '../../lib/httpErrors'
 import { getSupabaseClient } from '../../lib/supabase'
@@ -11,6 +11,12 @@ import EmojiPicker from '../../components/EmojiPicker'
 
 const PostsPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  
+  // Contextual navigation: track if we came from the Entry Editor
+  const [cameFromEditor, setCameFromEditor] = useState(false)
+  const [returnToPostId, setReturnToPostId] = useState(null)
+  
   const [activeTab, setActiveTab] = useState('editor')
   const [posts, setPosts] = useState([])
   const [filteredPosts, setFilteredPosts] = useState([])
@@ -59,6 +65,19 @@ const PostsPage = () => {
   useEffect(() => {
     fetchPosts()
   }, [])
+
+  // Handle contextual navigation from Entry Editor
+  useEffect(() => {
+    if (location.state?.fromEditor) {
+      setCameFromEditor(true)
+      setReturnToPostId(location.state.returnToPostId || null)
+      setActiveTab('curator')
+      
+      // Clear the location state to prevent re-triggering on navigation within page
+      // This uses replaceState to avoid adding to history
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state])
 
   useEffect(() => {
     // Client-side filtering and sorting
@@ -684,6 +703,37 @@ const PostsPage = () => {
       {/* Curator Tab Content */}
       {activeTab === 'curator' && (
         <div className="w-full space-y-6">
+          
+          {/* Back to Editor Button - only shown when navigated from Editor */}
+          {cameFromEditor && (
+            <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-4 py-3">
+              <div className="flex items-center gap-2 text-purple-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm">
+                  You're viewing the Curator from the Entry Editor.
+                  {returnToPostId && ' Changes here will be reflected in your entry.'}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setCameFromEditor(false)
+                  if (returnToPostId) {
+                    navigate(`/dashboard/posts/${returnToPostId}/edit`)
+                  } else {
+                    navigate('/dashboard/posts/new')
+                  }
+                }}
+                className="px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                </svg>
+                Back to Editor
+              </button>
+            </div>
+          )}
           
           {/* JOURNALS ROW */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
