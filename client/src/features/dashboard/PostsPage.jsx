@@ -402,11 +402,17 @@ const PostsPage = () => {
                                 ? 'bg-green-50 text-green-700 border-green-200' 
                                 : post.status === 'draft'
                                 ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                : post.status === 'private'
+                                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                : post.status === 'system'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-gray-50 text-gray-700 border-gray-200'
                             } ${updatingStatusId === post.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                           >
                             <option value="draft">Draft</option>
                             <option value="published">Published</option>
+                            <option value="private">Private</option>
+                            <option value="system">System</option>
                             <option value="archived">Archived</option>
                           </select>
                         </td>
@@ -666,6 +672,8 @@ const PostsPage = () => {
                         {/* Status indicator */}
                         <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${
                           post.status === 'published' ? 'bg-green-500' :
+                          post.status === 'private' ? 'bg-purple-500' :
+                          post.status === 'system' ? 'bg-blue-500' :
                           post.status === 'archived' ? 'bg-gray-400' :
                           'bg-yellow-500'
                         }`} title={post.status || 'draft'} />
@@ -860,11 +868,11 @@ const PostsPage = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
                       <button
                         type="button"
                         onClick={() => setNewJournalStatus('draft')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                           newJournalStatus === 'draft'
                             ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
                             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -880,7 +888,7 @@ const PostsPage = () => {
                       <button
                         type="button"
                         onClick={() => setNewJournalStatus('published')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                           newJournalStatus === 'published'
                             ? 'bg-green-50 border-green-300 text-green-700'
                             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -896,8 +904,43 @@ const PostsPage = () => {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setNewJournalStatus('private')}
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newJournalStatus === 'private'
+                            ? 'bg-purple-50 border-purple-300 text-purple-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          Private
+                        </span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewJournalStatus('system')}
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newJournalStatus === 'system'
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          System
+                        </span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setNewJournalStatus('archived')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                           newJournalStatus === 'archived'
                             ? 'bg-gray-100 border-gray-400 text-gray-700'
                             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -914,6 +957,8 @@ const PostsPage = () => {
                     <p className="text-xs text-gray-500 mt-1.5">
                       {newJournalStatus === 'draft' && 'Only visible to you while editing'}
                       {newJournalStatus === 'published' && 'Visible to all visitors'}
+                      {newJournalStatus === 'private' && 'Only viewable by specific people or through specific access'}
+                      {newJournalStatus === 'system' && 'Used by the web application (e.g., Terms of Service, Bio)'}
                       {newJournalStatus === 'archived' && 'Hidden from public, preserved for reference'}
                     </p>
                   </div>
@@ -1132,11 +1177,11 @@ const PostsPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
                       <button
                         type="button"
                         onClick={() => setNewCollectionStatus('draft')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                           newCollectionStatus === 'draft'
                             ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
                             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -1152,7 +1197,7 @@ const PostsPage = () => {
                       <button
                         type="button"
                         onClick={() => setNewCollectionStatus('published')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                           newCollectionStatus === 'published'
                             ? 'bg-green-50 border-green-300 text-green-700'
                             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -1168,8 +1213,43 @@ const PostsPage = () => {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setNewCollectionStatus('private')}
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newCollectionStatus === 'private'
+                            ? 'bg-purple-50 border-purple-300 text-purple-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          Private
+                        </span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewCollectionStatus('system')}
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                          newCollectionStatus === 'system'
+                            ? 'bg-blue-50 border-blue-300 text-blue-700'
+                            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          System
+                        </span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setNewCollectionStatus('archived')}
-                        className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                           newCollectionStatus === 'archived'
                             ? 'bg-gray-100 border-gray-400 text-gray-700'
                             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -1186,6 +1266,8 @@ const PostsPage = () => {
                     <p className="text-xs text-gray-500 mt-1.5">
                       {newCollectionStatus === 'draft' && 'Only visible to you while editing'}
                       {newCollectionStatus === 'published' && 'Visible to all visitors'}
+                      {newCollectionStatus === 'private' && 'Only viewable by specific people or through specific access'}
+                      {newCollectionStatus === 'system' && 'Used by the web application (e.g., Terms of Service, Bio)'}
                       {newCollectionStatus === 'archived' && 'Hidden from public, preserved for reference'}
                     </p>
                   </div>
