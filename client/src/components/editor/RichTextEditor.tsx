@@ -26,28 +26,8 @@ export interface RichTextEditorRef {
 const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ content, onChange, onInsertImage, onImageDoubleClick, className = '' }, ref) => {
   const [uploading, setUploading] = useState(false)
   const [imagePickerOpen, setImagePickerOpen] = useState(false)
-  const [editorHeight, setEditorHeight] = useState(() => {
-    // Responsive default height based on screen size
-    if (typeof window !== 'undefined') {
-      const height = window.innerHeight
-      if (height < 600) return '50vh' // Smaller screens
-      if (height < 800) return '55vh' // Medium screens  
-      return '60vh' // Large screens
-    }
-    return '60vh'
-  })
-  
-  const [editorWidth, setEditorWidth] = useState(() => {
-    // Responsive default width based on screen size
-    if (typeof window !== 'undefined') {
-      const width = window.innerWidth
-      if (width < 768) return '100%' // Mobile: full width
-      if (width < 1024) return '90%' // Tablet: 90% width
-      if (width < 1440) return '80%' // Desktop: 80% width
-      return '70%' // Large desktop: 70% width (but can expand much more)
-    }
-    return '100%'
-  })
+  const [editorHeight, setEditorHeight] = useState('700px')
+  const [editorWidth, setEditorWidth] = useState('840px')
   
   // Track actual pixel dimensions
   const editorContainerRef = useRef<HTMLDivElement>(null)
