@@ -8,44 +8,6 @@ import StatusBadge from './components/StatusBadge'
 import EmojiPicker from '../../components/EmojiPicker'
 // Removed AdminTokenControls - using Supabase JWT auth now
 
-// Placeholder data for Curator - will be replaced with API data later
-const PLACEHOLDER_JOURNALS = [
-  { id: 'j1', name: 'Travel', icon: '✈️' },
-  { id: 'j2', name: 'Personal', icon: '💭' },
-  { id: 'j3', name: 'Creative', icon: '🎨' },
-]
-
-const PLACEHOLDER_COLLECTIONS = {
-  j1: [
-    { id: 'c1', name: 'US', journalId: 'j1' },
-    { id: 'c2', name: 'Japan', journalId: 'j1' },
-    { id: 'c3', name: 'Europe', journalId: 'j1' },
-  ],
-  j2: [
-    { id: 'c4', name: 'Reflections', journalId: 'j2' },
-    { id: 'c5', name: 'Goals', journalId: 'j2' },
-  ],
-  j3: [
-    { id: 'c6', name: 'Short Stories', journalId: 'j3' },
-  ],
-}
-
-const PLACEHOLDER_ENTRIES = {
-  c1: [
-    { id: 'e1', title: 'California Road Trip' },
-    { id: 'e2', title: 'New York Weekend' },
-  ],
-  c2: [
-    { id: 'e3', title: 'Tokyo Nights' },
-  ],
-  c3: [],
-  c4: [
-    { id: 'e4', title: 'Year in Review' },
-  ],
-  c5: [],
-  c6: [],
-}
-
 const PostsPage = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('editor')
@@ -62,7 +24,13 @@ const PostsPage = () => {
   const [sortDirection, setSortDirection] = useState('desc') // 'asc' or 'desc'
   const [organizationView, setOrganizationView] = useState('journal') // 'journal' or 'collection'
   
-  // Curator state
+  // Curator state - data from database
+  const [journals, setJournals] = useState([])
+  const [collections, setCollections] = useState([]) // collections for selected journal
+  const [collectionEntries, setCollectionEntries] = useState([]) // entries for selected collection
+  const [curatorLoading, setCuratorLoading] = useState(false)
+  
+  // Curator state - UI
   const [selectedJournal, setSelectedJournal] = useState(null)
   const [selectedCollection, setSelectedCollection] = useState(null)
   const [showUnassigned, setShowUnassigned] = useState(false)
@@ -479,7 +447,7 @@ const PostsPage = () => {
               Journals
             </h3>
             <div className="flex flex-wrap gap-4">
-              {PLACEHOLDER_JOURNALS.map(journal => (
+              {journals.map(journal => (
                 <button
                   key={journal.id}
                   onClick={() => {
@@ -492,7 +460,11 @@ const PostsPage = () => {
                       : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 text-gray-700'
                   }`}
                 >
-                  <span className="text-3xl mb-2">{journal.icon}</span>
+                  {journal.icon_type === 'image' && journal.icon_image_url ? (
+                    <img src={journal.icon_image_url} alt="" className="w-10 h-10 object-cover rounded mb-2" />
+                  ) : (
+                    <span className="text-3xl mb-2">{journal.icon_emoji || '📚'}</span>
+                  )}
                   <span className="text-sm font-medium">{journal.name}</span>
                 </button>
               ))}
@@ -513,7 +485,7 @@ const PostsPage = () => {
           {/* COLLECTIONS ROW */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              Collections {selectedJournal && `in "${PLACEHOLDER_JOURNALS.find(j => j.id === selectedJournal)?.name}"`}
+              Collections {selectedJournal && `in "${journals.find(j => j.id === selectedJournal)?.name}"`}
             </h3>
             
             {!selectedJournal ? (
@@ -525,7 +497,7 @@ const PostsPage = () => {
               </div>
             ) : (
               <div className="flex flex-wrap gap-4">
-                {(PLACEHOLDER_COLLECTIONS[selectedJournal] || []).map(collection => (
+                {collections.map(collection => (
                   <button
                     key={collection.id}
                     onClick={() => setSelectedCollection(selectedCollection === collection.id ? null : collection.id)}
@@ -559,7 +531,7 @@ const PostsPage = () => {
           {/* ENTRIES ROW */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-              Entries {selectedCollection && `in "${(PLACEHOLDER_COLLECTIONS[selectedJournal] || []).find(c => c.id === selectedCollection)?.name}"`}
+              Entries {selectedCollection && `in "${collections.find(c => c.id === selectedCollection)?.name}"`}
             </h3>
             
             {!selectedCollection ? (
@@ -571,9 +543,9 @@ const PostsPage = () => {
               </div>
             ) : (
               <div className="flex flex-wrap gap-4">
-                {(PLACEHOLDER_ENTRIES[selectedCollection] || []).map(entry => (
+                {collectionEntries.map(entry => (
                   <div
-                    key={entry.id}
+                    key={entry.entry_id || entry.post_id}
                     className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-white text-gray-700 relative group"
                   >
                     <button
@@ -584,10 +556,14 @@ const PostsPage = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
-                    <svg className="w-8 h-8 mb-2 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="text-xs font-medium text-center px-2 truncate w-full">{entry.title}</span>
+                    {entry.post_cover_image_url ? (
+                      <img src={entry.post_cover_image_url} alt="" className="w-8 h-8 mb-2 object-cover rounded" />
+                    ) : (
+                      <svg className="w-8 h-8 mb-2 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    )}
+                    <span className="text-xs font-medium text-center px-2 truncate w-full">{entry.post_title}</span>
                   </div>
                 ))}
                 
@@ -602,7 +578,7 @@ const PostsPage = () => {
                   <span className="text-xs font-medium">Add Entry</span>
                 </button>
                 
-                {(PLACEHOLDER_ENTRIES[selectedCollection] || []).length === 0 && (
+                {collectionEntries.length === 0 && (
                   <p className="text-sm text-gray-400 self-center ml-4">No entries in this collection yet</p>
                 )}
               </div>
