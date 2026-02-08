@@ -130,7 +130,7 @@ router.get('/admin', requireSupabaseAdmin, async (req: AuthenticatedRequest, res
       .range(offset, offset + limitNum - 1)
     
     // Filter by status if provided
-    if (status && typeof status === 'string' && ['draft', 'published', 'archived'].includes(status)) {
+    if (status && typeof status === 'string' && ['draft', 'published', 'private', 'system', 'archived'].includes(status)) {
       query = query.eq('status', status)
     }
     

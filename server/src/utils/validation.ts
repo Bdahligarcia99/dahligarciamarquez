@@ -169,7 +169,7 @@ export function validateSlugFormat(slug: any): ValidationError[] {
  */
 export function validateStatus(status: any): ValidationError[] {
   const errors: ValidationError[] = []
-  const validStatuses = ['draft', 'published', 'archived']
+  const validStatuses = ['draft', 'published', 'private', 'system', 'archived']
 
   if (status !== undefined && !validStatuses.includes(status)) {
     errors.push({
