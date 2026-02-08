@@ -2423,19 +2423,6 @@ const CardBuilderPage = () => {
                   </svg>
                 </button>
                 <button 
-                  onClick={() => conveyorMode ? setConveyorMode(false) : activateConveyor()}
-                  className={`p-2 rounded-lg transition-colors ${
-                    conveyorMode 
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-                      : 'hover:bg-gray-700 text-gray-300 hover:text-white'
-                  }`} 
-                  title={conveyorMode ? "Deactivate Conveyor Tool" : "Conveyor Settings"}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                  </svg>
-                </button>
-                <button 
                   onClick={() => propertiesMode ? deactivateProperties() : activateProperties()}
                   className={`p-2 rounded-lg transition-colors ${
                     propertiesMode 

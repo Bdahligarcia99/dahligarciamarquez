@@ -1,0 +1,19 @@
+---
+description: Git workflow rules - always push to dev branch
+alwaysApply: true
+---
+
+# Git Workflow
+
+## Branch Rules
+
+- **Always push to `dev` branch** - All commits should be pushed to the `dev` branch
+- Do NOT push directly to `main` unless explicitly requested
+- The `dev` branch is the active development branch
+- `main` and `dev` should be kept in sync periodically by the user
+
+## Commit Guidelines
+
+- Create checkpoint commits frequently during editing sessions
+- Use descriptive commit messages that explain "why" not just "what"
+- Commit before making major changes to provide restore points
