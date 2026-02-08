@@ -8,6 +8,7 @@ import { uploadImage, UploadError } from '../../utils/uploadImage'
 import { validateImageUrl, extractImageUrlsFromHtml } from '../../utils/imageValidation'
 import { generateCoverImageAlt } from '../../utils/altTextGenerator'
 import { parseImportContent, getFieldsSummary, ImportMode, ParsedEntryFields } from '../../utils/importParser'
+import { getSupabaseClient } from '../../lib/supabase'
 import ImageManagementPanel from '../editor/ImageManagementPanel'
 import CompressionControls from '../editor/CompressionControls'
 import SmartTooltip from '../editor/SmartTooltip'
@@ -20,6 +21,30 @@ let sessionCoverPreviewState = false
 interface Label {
   id: string
   name: string
+}
+
+// Curator Collection types for the new labeling system
+interface CollectionForPicker {
+  collection_id: string
+  collection_name: string
+  collection_slug: string
+  collection_icon_emoji: string
+  collection_status: string
+  journal_id: string
+  journal_name: string
+  journal_icon_emoji: string
+  journal_icon_type: string
+  journal_status: string
+  entry_count: number
+}
+
+interface PostCollection {
+  collection_id: string
+  collection_name: string
+  collection_icon_emoji: string
+  journal_id: string
+  journal_name: string
+  journal_icon_emoji: string
 }
 
 interface PostEditorProps {
@@ -42,6 +67,11 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [availableLabels, setAvailableLabels] = useState<Label[]>([])
+  
+  // Curator collections state (new labeling system)
+  const [availableCollections, setAvailableCollections] = useState<CollectionForPicker[]>([])
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([])
+  const [collectionsLoading, setCollectionsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -117,6 +147,82 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       setAvailableLabels(labels)
     } catch (error) {
       console.error('Error fetching labels:', error)
+    }
+  }
+
+  // Fetch available collections from Curator system
+  const fetchCollections = async () => {
+    setCollectionsLoading(true)
+    try {
+      const supabase = getSupabaseClient()
+      const { data, error } = await supabase.rpc('get_all_collections_for_picker')
+      
+      if (error) throw error
+      setAvailableCollections(data || [])
+    } catch (error) {
+      console.error('Error fetching collections:', error)
+    } finally {
+      setCollectionsLoading(false)
+    }
+  }
+
+  // Fetch collections for current post
+  const fetchPostCollections = async (postIdToFetch: string) => {
+    try {
+      const supabase = getSupabaseClient()
+      const { data, error } = await supabase.rpc('get_post_collections', {
+        p_post_id: postIdToFetch
+      })
+      
+      if (error) throw error
+      setSelectedCollections((data || []).map((c: PostCollection) => c.collection_id))
+    } catch (error) {
+      console.error('Error fetching post collections:', error)
+    }
+  }
+
+  // Toggle collection selection
+  const toggleCollection = async (collectionId: string) => {
+    const isSelected = selectedCollections.includes(collectionId)
+    
+    // Optimistic update
+    if (isSelected) {
+      setSelectedCollections(prev => prev.filter(id => id !== collectionId))
+    } else {
+      setSelectedCollections(prev => [...prev, collectionId])
+    }
+
+    // If post exists, immediately update in database
+    if (postId) {
+      try {
+        const supabase = getSupabaseClient()
+        
+        if (isSelected) {
+          // Remove from collection
+          const { error } = await supabase.rpc('remove_post_from_collection', {
+            p_collection_id: collectionId,
+            p_post_id: postId
+          })
+          if (error) throw error
+        } else {
+          // Add to collection
+          const { error } = await supabase.rpc('add_post_to_collection', {
+            p_collection_id: collectionId,
+            p_post_id: postId
+          })
+          if (error) throw error
+        }
+      } catch (error) {
+        console.error('Error updating collection:', error)
+        // Revert optimistic update on error
+        if (isSelected) {
+          setSelectedCollections(prev => [...prev, collectionId])
+        } else {
+          setSelectedCollections(prev => prev.filter(id => id !== collectionId))
+        }
+        setError('Failed to update collection assignment')
+        setTimeout(() => setError(null), 3000)
+      }
     }
   }
 
@@ -269,6 +375,22 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       } else {
         // Create new post
         savedPost = await supabaseAdminPost('/api/posts', postData)
+        
+        // Add to selected collections (for new posts)
+        if (selectedCollections.length > 0 && savedPost?.id) {
+          const supabase = getSupabaseClient()
+          for (const collectionId of selectedCollections) {
+            try {
+              await supabase.rpc('add_post_to_collection', {
+                p_collection_id: collectionId,
+                p_post_id: savedPost.id
+              })
+            } catch (collectionError) {
+              console.error('Error adding to collection:', collectionError)
+            }
+          }
+        }
+        
         // Navigate back to entries list after creation
         navigate('/dashboard/posts')
       }
@@ -636,8 +758,10 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
 
   useEffect(() => {
     fetchLabels()
+    fetchCollections()
     if (postId) {
       fetchPost()
+      fetchPostCollections(postId)
     }
   }, [postId])
 
@@ -1000,11 +1124,78 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           </div>
         </div>
 
-        {/* Labels */}
+        {/* Collections (Curator Labeling System) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Collections
+            {collectionsLoading && (
+              <span className="ml-2 text-xs text-gray-500">(loading...)</span>
+            )}
+          </label>
+          
+          {availableCollections.length > 0 ? (
+            <div className="space-y-3">
+              {/* Group collections by journal */}
+              {Object.entries(
+                availableCollections.reduce((acc, collection) => {
+                  const journalKey = collection.journal_id
+                  if (!acc[journalKey]) {
+                    acc[journalKey] = {
+                      journal_name: collection.journal_name,
+                      journal_icon_emoji: collection.journal_icon_emoji,
+                      journal_icon_type: collection.journal_icon_type,
+                      collections: []
+                    }
+                  }
+                  acc[journalKey].collections.push(collection)
+                  return acc
+                }, {} as Record<string, { journal_name: string; journal_icon_emoji: string; journal_icon_type: string; collections: CollectionForPicker[] }>)
+              ).map(([journalId, journal]) => (
+                <div key={journalId} className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2 text-sm font-medium text-gray-600">
+                    <span>{journal.journal_icon_emoji || '📚'}</span>
+                    <span>{journal.journal_name}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {journal.collections.map((collection) => (
+                      <button
+                        key={collection.collection_id}
+                        type="button"
+                        onClick={() => toggleCollection(collection.collection_id)}
+                        className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                          selectedCollections.includes(collection.collection_id)
+                            ? 'bg-blue-100 border-blue-300 text-blue-800'
+                            : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
+                        }`}
+                      >
+                        <span>{collection.collection_icon_emoji || '📁'}</span>
+                        <span>{collection.collection_name}</span>
+                        <span className="text-xs opacity-60">({collection.entry_count})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : !collectionsLoading ? (
+            <div className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded-lg border border-gray-200">
+              No collections available. Create collections in the Curator to organize your entries.
+            </div>
+          ) : null}
+          
+          {selectedCollections.length > 0 && (
+            <div className="mt-2 text-xs text-gray-500">
+              {selectedCollections.length} collection{selectedCollections.length !== 1 ? 's' : ''} selected
+            </div>
+          )}
+        </div>
+
+        {/* Legacy Labels (if any exist) */}
         {availableLabels.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Labels
+          <div className="pt-3 border-t border-gray-100">
+            <label className="block text-sm font-medium text-gray-500 mb-2">
+              Legacy Labels
+              <span className="ml-2 text-xs text-gray-400">(deprecated - use Collections above)</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {availableLabels.map((label) => (
@@ -1014,8 +1205,8 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                   onClick={() => toggleLabel(label.id)}
                   className={`px-3 py-1 rounded-full text-sm border ${
                     selectedLabels.includes(label.id)
-                      ? 'bg-blue-100 border-blue-300 text-blue-800'
-                      : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-gray-200 border-gray-400 text-gray-700'
+                      : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
                   }`}
                 >
                   {label.name}
