@@ -1,8 +1,9 @@
 // client/src/features/dashboard/PostsPage.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabaseAdminGet, supabaseAdminDelete, supabaseAdminPatch } from '../../lib/api'
 import { isHTTPError } from '../../lib/httpErrors'
+import { getSupabaseClient } from '../../lib/supabase'
 import PostFormModal from './components/PostFormModal'
 import StatusBadge from './components/StatusBadge'
 import EmojiPicker from '../../components/EmojiPicker'
@@ -53,6 +54,7 @@ const PostsPage = () => {
   const [selectedEntryForAction, setSelectedEntryForAction] = useState(null)
   const [showEntryActionModal, setShowEntryActionModal] = useState(false)
   const [showAttributesView, setShowAttributesView] = useState(false)
+  const [selectedPostsToAdd, setSelectedPostsToAdd] = useState([]) // For add entry modal
 
   useEffect(() => {
     fetchPosts()
@@ -123,6 +125,248 @@ const PostsPage = () => {
       setLoading(false)
     }
   }
+
+  // ============================================================================
+  // CURATOR API FUNCTIONS
+  // ============================================================================
+  
+  // Fetch all journals
+  const fetchJournals = useCallback(async () => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+    
+    setCuratorLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('get_user_journals')
+      if (error) throw error
+      setJournals(data || [])
+    } catch (err) {
+      console.error('Failed to fetch journals:', err)
+    } finally {
+      setCuratorLoading(false)
+    }
+  }, [])
+  
+  // Fetch collections for selected journal
+  const fetchCollections = useCallback(async (journalId) => {
+    if (!journalId) {
+      setCollections([])
+      return
+    }
+    
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+    
+    setCuratorLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('get_journal_collections', { p_journal_id: journalId })
+      if (error) throw error
+      setCollections(data || [])
+    } catch (err) {
+      console.error('Failed to fetch collections:', err)
+    } finally {
+      setCuratorLoading(false)
+    }
+  }, [])
+  
+  // Fetch entries for selected collection
+  const fetchCollectionEntries = useCallback(async (collectionId) => {
+    if (!collectionId) {
+      setCollectionEntries([])
+      return
+    }
+    
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+    
+    setCuratorLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('get_collection_entries', { p_collection_id: collectionId })
+      if (error) throw error
+      setCollectionEntries(data || [])
+    } catch (err) {
+      console.error('Failed to fetch collection entries:', err)
+    } finally {
+      setCuratorLoading(false)
+    }
+  }, [])
+  
+  // Create a new journal
+  const createJournal = async (journalData) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return null
+    
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData?.user) throw new Error('Not authenticated')
+      
+      const { data, error } = await supabase
+        .from('journals')
+        .insert({
+          owner_id: userData.user.id,
+          name: journalData.name,
+          icon_type: journalData.iconType || 'emoji',
+          icon_emoji: journalData.iconEmoji || '📚',
+          icon_image_url: journalData.iconImageUrl || null,
+          status: journalData.status || 'draft',
+          wallpaper_url: journalData.wallpaperUrl || null,
+          wallpaper_blur: journalData.wallpaperBlur || 0
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // Refresh journals list
+      await fetchJournals()
+      return data
+    } catch (err) {
+      console.error('Failed to create journal:', err)
+      throw err
+    }
+  }
+  
+  // Create a new collection
+  const createCollection = async (collectionData) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return null
+    
+    try {
+      const { data, error } = await supabase
+        .from('collections')
+        .insert({
+          journal_id: collectionData.journalId,
+          name: collectionData.name,
+          status: collectionData.status || 'draft'
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // Refresh collections list
+      await fetchCollections(collectionData.journalId)
+      return data
+    } catch (err) {
+      console.error('Failed to create collection:', err)
+      throw err
+    }
+  }
+  
+  // Add post to collection
+  const addPostToCollection = async (collectionId, postId) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return null
+    
+    try {
+      const { data, error } = await supabase.rpc('add_post_to_collection', {
+        p_collection_id: collectionId,
+        p_post_id: postId
+      })
+      
+      if (error) throw error
+      
+      // Refresh entries list
+      await fetchCollectionEntries(collectionId)
+      return data
+    } catch (err) {
+      console.error('Failed to add post to collection:', err)
+      throw err
+    }
+  }
+  
+  // Remove post from collection
+  const removePostFromCollection = async (collectionId, postId) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return false
+    
+    try {
+      const { data, error } = await supabase.rpc('remove_post_from_collection', {
+        p_collection_id: collectionId,
+        p_post_id: postId
+      })
+      
+      if (error) throw error
+      
+      // Refresh entries list
+      await fetchCollectionEntries(collectionId)
+      return data
+    } catch (err) {
+      console.error('Failed to remove post from collection:', err)
+      throw err
+    }
+  }
+  
+  // Delete journal
+  const deleteJournal = async (journalId) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return false
+    
+    try {
+      const { error } = await supabase
+        .from('journals')
+        .delete()
+        .eq('id', journalId)
+      
+      if (error) throw error
+      
+      // Clear selection and refresh
+      if (selectedJournal === journalId) {
+        setSelectedJournal(null)
+        setSelectedCollection(null)
+        setCollections([])
+        setCollectionEntries([])
+      }
+      await fetchJournals()
+      return true
+    } catch (err) {
+      console.error('Failed to delete journal:', err)
+      throw err
+    }
+  }
+  
+  // Delete collection
+  const deleteCollection = async (collectionId) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) return false
+    
+    try {
+      const { error } = await supabase
+        .from('collections')
+        .delete()
+        .eq('id', collectionId)
+      
+      if (error) throw error
+      
+      // Clear selection and refresh
+      if (selectedCollection === collectionId) {
+        setSelectedCollection(null)
+        setCollectionEntries([])
+      }
+      await fetchCollections(selectedJournal)
+      return true
+    } catch (err) {
+      console.error('Failed to delete collection:', err)
+      throw err
+    }
+  }
+  
+  // Fetch journals when curator tab is active
+  useEffect(() => {
+    if (activeTab === 'curator') {
+      fetchJournals()
+    }
+  }, [activeTab, fetchJournals])
+  
+  // Fetch collections when journal is selected
+  useEffect(() => {
+    fetchCollections(selectedJournal)
+  }, [selectedJournal, fetchCollections])
+  
+  // Fetch entries when collection is selected
+  useEffect(() => {
+    fetchCollectionEntries(selectedCollection)
+  }, [selectedCollection, fetchCollectionEntries])
 
   const handleCreatePost = (newPost) => {
     // Optimistic update
@@ -549,6 +793,16 @@ const PostsPage = () => {
                     className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-white text-gray-700 relative group"
                   >
                     <button
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        if (window.confirm('Remove this entry from the collection?')) {
+                          try {
+                            await removePostFromCollection(selectedCollection, entry.post_id)
+                          } catch (err) {
+                            alert('Failed to remove entry. Please try again.')
+                          }
+                        }
+                      }}
                       className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-100 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-200"
                       title="Remove from collection"
                     >
@@ -1094,40 +1348,50 @@ const PostsPage = () => {
                     Cancel
                   </button>
                   <button 
-                    onClick={() => {
-                      // TODO: Save journal to database
-                      const iconData = newJournalIconType === 'emoji' 
-                        ? { type: 'emoji', value: newJournalEmoji }
-                        : { type: 'image', value: newJournalImageUrl || newJournalImageFile }
-                      const wallpaperData = newJournalHasWallpaper 
-                        ? (newJournalWallpaperUrl || newJournalWallpaperFile || null)
-                        : null
-                      console.log('Creating journal:', { 
-                        name: newJournalName, 
-                        icon: iconData, 
-                        status: newJournalStatus,
-                        wallpaper: wallpaperData
-                      })
-                      setShowNewJournalModal(false)
-                      setNewJournalName('')
-                      setNewJournalEmoji('📚')
-                      setNewJournalStatus('draft')
-                      setNewJournalIconType('emoji')
-                      setNewJournalImageUrl('')
-                      setNewJournalImageFile(null)
-                      if (newJournalImagePreview) {
-                        URL.revokeObjectURL(newJournalImagePreview)
-                        setNewJournalImagePreview(null)
-                      }
-                      setNewJournalHasWallpaper(false)
-                      setNewJournalWallpaperUrl('')
-                      setNewJournalWallpaperFile(null)
-                      if (newJournalWallpaperPreview) {
-                        URL.revokeObjectURL(newJournalWallpaperPreview)
-                        setNewJournalWallpaperPreview(null)
+                    onClick={async () => {
+                      if (!newJournalName.trim()) return
+                      
+                      try {
+                        await createJournal({
+                          name: newJournalName.trim(),
+                          iconType: newJournalIconType,
+                          iconEmoji: newJournalEmoji,
+                          iconImageUrl: newJournalImageUrl || null,
+                          status: newJournalStatus,
+                          wallpaperUrl: newJournalHasWallpaper ? (newJournalWallpaperUrl || null) : null,
+                          wallpaperBlur: 0
+                        })
+                        
+                        // Reset form and close modal
+                        setShowNewJournalModal(false)
+                        setNewJournalName('')
+                        setNewJournalEmoji('📚')
+                        setNewJournalStatus('draft')
+                        setNewJournalIconType('emoji')
+                        setNewJournalImageUrl('')
+                        setNewJournalImageFile(null)
+                        if (newJournalImagePreview) {
+                          URL.revokeObjectURL(newJournalImagePreview)
+                          setNewJournalImagePreview(null)
+                        }
+                        setNewJournalHasWallpaper(false)
+                        setNewJournalWallpaperUrl('')
+                        setNewJournalWallpaperFile(null)
+                        if (newJournalWallpaperPreview) {
+                          URL.revokeObjectURL(newJournalWallpaperPreview)
+                          setNewJournalWallpaperPreview(null)
+                        }
+                      } catch (err) {
+                        console.error('Failed to create journal:', err)
+                        alert('Failed to create journal. Please try again.')
                       }
                     }} 
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    disabled={!newJournalName.trim()}
+                    className={`px-4 py-2 rounded-md hover:bg-blue-700 ${
+                      newJournalName.trim() 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     Create Journal
                   </button>
@@ -1260,18 +1524,30 @@ const PostsPage = () => {
                     Cancel
                   </button>
                   <button 
-                    onClick={() => {
-                      // TODO: Save collection to database
-                      console.log('Creating collection:', { 
-                        name: newCollectionName, 
-                        status: newCollectionStatus,
-                        journalId: selectedJournal 
-                      })
-                      setShowNewCollectionModal(false)
-                      setNewCollectionName('')
-                      setNewCollectionStatus('draft')
+                    onClick={async () => {
+                      if (!newCollectionName.trim() || !selectedJournal) return
+                      
+                      try {
+                        await createCollection({
+                          journalId: selectedJournal,
+                          name: newCollectionName.trim(),
+                          status: newCollectionStatus
+                        })
+                        
+                        setShowNewCollectionModal(false)
+                        setNewCollectionName('')
+                        setNewCollectionStatus('draft')
+                      } catch (err) {
+                        console.error('Failed to create collection:', err)
+                        alert('Failed to create collection. Please try again.')
+                      }
                     }} 
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    disabled={!newCollectionName.trim() || !selectedJournal}
+                    className={`px-4 py-2 rounded-md ${
+                      newCollectionName.trim() && selectedJournal
+                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     Create Collection
                   </button>
@@ -1303,9 +1579,22 @@ const PostsPage = () => {
                         {searchTerm ? 'No entries match your search' : 'No entries available'}
                       </div>
                     ) : (
-                      filteredPosts.map((post) => (
+                      filteredPosts
+                        .filter(post => !collectionEntries.some(e => e.post_id === post.id))
+                        .map((post) => (
                         <label key={post.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
-                          <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 text-blue-600 rounded"
+                            checked={selectedPostsToAdd.includes(post.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPostsToAdd(prev => [...prev, post.id])
+                              } else {
+                                setSelectedPostsToAdd(prev => prev.filter(id => id !== post.id))
+                              }
+                            }}
+                          />
                           <div className="flex-1 min-w-0">
                             <span className="text-sm text-gray-700 block truncate">{post.title || 'Untitled'}</span>
                             <span className="text-xs text-gray-400">
@@ -1315,6 +1604,8 @@ const PostsPage = () => {
                           {/* Status dot */}
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             post.status === 'published' ? 'bg-green-500' :
+                            post.status === 'private' ? 'bg-purple-500' :
+                            post.status === 'system' ? 'bg-blue-500' :
                             post.status === 'archived' ? 'bg-gray-400' :
                             'bg-yellow-500'
                           }`} />
@@ -1323,7 +1614,10 @@ const PostsPage = () => {
                     )}
                   </div>
                   <p className="text-xs text-gray-500">
-                    {filteredPosts.length} {filteredPosts.length === 1 ? 'entry' : 'entries'} available
+                    {selectedPostsToAdd.length > 0 
+                      ? `${selectedPostsToAdd.length} selected` 
+                      : `${filteredPosts.filter(p => !collectionEntries.some(e => e.post_id === p.id)).length} entries available`
+                    }
                   </p>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
@@ -1331,20 +1625,38 @@ const PostsPage = () => {
                     onClick={() => {
                       setShowAddEntryModal(false)
                       setSearchTerm('')
+                      setSelectedPostsToAdd([])
                     }} 
                     className="px-4 py-2 text-gray-600 hover:text-gray-800"
                   >
                     Cancel
                   </button>
                   <button 
-                    onClick={() => {
-                      // TODO: Save selected entries to collection
-                      setShowAddEntryModal(false)
-                      setSearchTerm('')
+                    onClick={async () => {
+                      if (selectedPostsToAdd.length === 0 || !selectedCollection) return
+                      
+                      try {
+                        // Add all selected posts to the collection
+                        for (const postId of selectedPostsToAdd) {
+                          await addPostToCollection(selectedCollection, postId)
+                        }
+                        
+                        setShowAddEntryModal(false)
+                        setSearchTerm('')
+                        setSelectedPostsToAdd([])
+                      } catch (err) {
+                        console.error('Failed to add entries:', err)
+                        alert('Failed to add some entries. Please try again.')
+                      }
                     }} 
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    disabled={selectedPostsToAdd.length === 0}
+                    className={`px-4 py-2 rounded-md ${
+                      selectedPostsToAdd.length > 0
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
-                    Add Selected
+                    Add Selected ({selectedPostsToAdd.length})
                   </button>
                 </div>
               </div>
