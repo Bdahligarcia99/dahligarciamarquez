@@ -669,9 +669,10 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         urlsToValidate.push(coverImageUrl.trim())
       }
       
-      // Extract and add content image URLs
-      if (content?.html) {
-        const contentImageUrls = extractImageUrlsFromHtml(content.html)
+      // Extract and add content image URLs (read directly from editor)
+      const currentHtml = editorRef.current?.editor?.getHTML() || content?.html
+      if (currentHtml) {
+        const contentImageUrls = extractImageUrlsFromHtml(currentHtml)
         urlsToValidate.push(...contentImageUrls)
       }
       
@@ -695,14 +696,18 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         }
       }
 
+      // Get current content directly from editor (more reliable than state)
+      const editorJson = editorRef.current?.editor?.getJSON() || content?.json || null
+      const editorHtml = editorRef.current?.editor?.getHTML() || content?.html || ''
+      
       // Extract plain text from content for content_text field
-      const contentText = content?.html ? 
-        content.html.replace(/<[^>]*>/g, '').trim() : ''
+      const contentText = editorHtml ? 
+        editorHtml.replace(/<[^>]*>/g, '').trim() : ''
 
       const postData = {
         title: title?.trim() || '',
-        content_rich: content?.json || null,
-        content_html: content?.html || null,
+        content_rich: editorJson,
+        content_html: editorHtml || null,
         content_text: contentText,
         excerpt: excerpt?.trim() || null,
         cover_image_url: (coverCompressionResult?.url || coverImageUrl)?.trim() || null,
