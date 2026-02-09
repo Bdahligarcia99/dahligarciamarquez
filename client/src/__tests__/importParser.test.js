@@ -247,6 +247,211 @@ describe('Import Parser Utilities', () => {
         expect(result.error).toBe('No content to import')
       })
     })
+
+    describe('Export Template JSON compatibility', () => {
+      test('ignores __meta key from Export Template', () => {
+        const input = JSON.stringify({
+          __meta: {
+            description: 'Entry template',
+            version: '1.0.0',
+            fields: { title: { type: 'string' } }
+          },
+          title: 'Test Entry',
+          content: '<p>Content</p>'
+        })
+        
+        const result = parseImportContent(input, 'json', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('Test Entry')
+        expect(result.fields.__meta).toBeUndefined()
+        expect(result.warnings.some(w => w.includes('__meta'))).toBe(true)
+      })
+
+      test('handles full Export Template JSON structure', () => {
+        const input = JSON.stringify({
+          __meta: {
+            description: 'Entry template',
+            version: '1.0.0',
+            generatedAt: '2024-01-01T00:00:00Z',
+            fields: {}
+          },
+          title: 'My Entry',
+          excerpt: 'A brief summary',
+          coverImageUrl: 'https://example.com/image.jpg',
+          coverImageAlt: 'Image description',
+          content: '<p>Full content here</p>',
+          status: 'draft',
+          journals: ['Fiction'],
+          collections: ['Short Stories']
+        })
+        
+        const result = parseImportContent(input, 'json', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('My Entry')
+        expect(result.fields.excerpt).toBe('A brief summary')
+        expect(result.fields.coverImageUrl).toBe('https://example.com/image.jpg')
+        expect(result.fields.coverImageAlt).toBe('Image description')
+        expect(result.fields.content.html).toContain('Full content here')
+        expect(result.fields.status).toBe('draft')
+        expect(result.fields.journals).toEqual(['Fiction'])
+        expect(result.fields.collections).toEqual(['Short Stories'])
+      })
+
+      test('reports detected and skipped fields', () => {
+        const input = JSON.stringify({
+          title: 'New Title',
+          excerpt: 'New Excerpt'
+        })
+        const currentFields = { title: 'Existing Title', excerpt: '' }
+        
+        const result = parseImportContent(input, 'json', false, currentFields)
+        
+        expect(result.success).toBe(true)
+        expect(result.detectedFields).toContain('title')
+        expect(result.detectedFields).toContain('excerpt')
+        expect(result.skippedFields).toContain('title')
+        expect(result.skippedFields).not.toContain('excerpt')
+      })
+    })
+
+    describe('Export Template HTML compatibility', () => {
+      test('parses HTML with data-entry-field markers', () => {
+        const input = `
+          <h1 data-entry-field="title">Marked Title</h1>
+          <p data-entry-field="excerpt">Marked excerpt text</p>
+          <figure data-entry-field="coverImage">
+            <img src="https://example.com/cover.jpg" alt="Cover alt text">
+          </figure>
+          <article data-entry-field="content">
+            <p>Marked content paragraph</p>
+          </article>
+        `
+        
+        const result = parseImportContent(input, 'html', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('Marked Title')
+        expect(result.fields.excerpt).toBe('Marked excerpt text')
+        expect(result.fields.coverImageUrl).toBe('https://example.com/cover.jpg')
+        expect(result.fields.coverImageAlt).toBe('Cover alt text')
+        expect(result.fields.content.html).toContain('Marked content paragraph')
+      })
+
+      test('parses embedded JSON meta script for status/journals/collections', () => {
+        const input = `
+          <h1 data-entry-field="title">Test Entry</h1>
+          <script type="application/json" data-entry-field="meta">
+          {
+            "status": "published",
+            "journals": ["Fiction", "Poetry"],
+            "collections": ["Favorites"]
+          }
+          </script>
+        `
+        
+        const result = parseImportContent(input, 'html', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('Test Entry')
+        expect(result.fields.status).toBe('published')
+        expect(result.fields.journals).toEqual(['Fiction', 'Poetry'])
+        expect(result.fields.collections).toEqual(['Favorites'])
+      })
+
+      test('prioritizes markers over heuristics', () => {
+        const input = `
+          <h1>Heuristic Title Should Be Ignored</h1>
+          <h1 data-entry-field="title">Marked Title Should Win</h1>
+          <p>First paragraph for heuristic excerpt</p>
+          <p data-entry-field="excerpt">Marked excerpt should win</p>
+        `
+        
+        const result = parseImportContent(input, 'html', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('Marked Title Should Win')
+        expect(result.fields.excerpt).toBe('Marked excerpt should win')
+      })
+
+      test('falls back to heuristics when no markers present', () => {
+        const input = `
+          <h1>Heuristic Title</h1>
+          <img src="https://example.com/heuristic.jpg" alt="Heuristic alt">
+          <p>Short excerpt from first paragraph.</p>
+          <p>More content here.</p>
+        `
+        
+        const result = parseImportContent(input, 'html', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('Heuristic Title')
+        expect(result.fields.coverImageUrl).toBe('https://example.com/heuristic.jpg')
+        expect(result.fields.coverImageAlt).toBe('Heuristic alt')
+        expect(result.fields.excerpt).toBe('Short excerpt from first paragraph.')
+      })
+
+      test('handles full Export Template HTML structure', () => {
+        const input = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <title>Entry Template</title>
+          </head>
+          <body>
+            <!-- ENTRY_FIELD:title -->
+            <h1 data-entry-field="title">Full Template Entry</h1>
+            <!-- /ENTRY_FIELD:title -->
+            
+            <!-- ENTRY_FIELD:coverImage -->
+            <figure data-entry-field="coverImage">
+              <img src="https://example.com/template-cover.jpg" alt="Template cover image" />
+            </figure>
+            <!-- /ENTRY_FIELD:coverImage -->
+            
+            <!-- ENTRY_FIELD:excerpt -->
+            <p data-entry-field="excerpt">A brief summary of the entry.</p>
+            <!-- /ENTRY_FIELD:excerpt -->
+            
+            <!-- ENTRY_FIELD:content -->
+            <article data-entry-field="content">
+              <p>Full entry content goes here.</p>
+              <ul>
+                <li>List item 1</li>
+                <li>List item 2</li>
+              </ul>
+            </article>
+            <!-- /ENTRY_FIELD:content -->
+            
+            <!-- ENTRY_FIELD:meta -->
+            <script type="application/json" data-entry-field="meta">
+            {
+              "status": "draft",
+              "journals": ["Tech", "Tutorials"],
+              "collections": ["Getting Started"]
+            }
+            </script>
+            <!-- /ENTRY_FIELD:meta -->
+          </body>
+          </html>
+        `
+        
+        const result = parseImportContent(input, 'html', false)
+        
+        expect(result.success).toBe(true)
+        expect(result.fields.title).toBe('Full Template Entry')
+        expect(result.fields.coverImageUrl).toBe('https://example.com/template-cover.jpg')
+        expect(result.fields.coverImageAlt).toBe('Template cover image')
+        expect(result.fields.excerpt).toBe('A brief summary of the entry.')
+        expect(result.fields.content.html).toContain('Full entry content goes here')
+        expect(result.fields.content.html).toContain('List item 1')
+        expect(result.fields.status).toBe('draft')
+        expect(result.fields.journals).toEqual(['Tech', 'Tutorials'])
+        expect(result.fields.collections).toEqual(['Getting Started'])
+      })
+    })
   })
 
   describe('getFieldsSummary', () => {

@@ -3,34 +3,33 @@
  * 
  * Generates exportable templates in JSON or HTML format that match
  * the Entry Editor's field structure. These templates are designed
- * to be compatible with the Import feature.
+ * to be fully compatible with the Import feature.
+ * 
+ * Uses shared field definitions from entryFieldDefinitions.ts
  * 
  * ============================================================
- * ENTRY EDITOR FIELDS (discovered from PostEditor.tsx):
+ * EXPORT TEMPLATE CONTRACT
  * ============================================================
  * 
- * CORE FIELDS:
- * - title (string, required) - Entry title
- * - excerpt (string, optional) - Brief description/summary
- * - coverImageUrl (string, optional) - URL to cover image
- * - coverImageAlt (string, required if cover exists) - Alt text for accessibility
- * - content (object: { json: any; html: string }) - Rich text content
- *   - The editor stores both JSON (TipTap/ProseMirror) and HTML representations
- *   - For templates, we use the HTML representation as it's more portable
- * - status (enum: 'draft' | 'published' | 'archived') - Publication status
+ * JSON Template:
+ * - Uses canonical field names from ENTRY_FIELD_DEFINITIONS
+ * - Includes __meta section for documentation (ignored by import)
+ * - Empty placeholders appropriate to each field type
  * 
- * ORGANIZATION FIELDS:
- * - journals (string array) - Journal names for categorization
- * - collections (string array) - Collection names for grouping
- *   - Import supports: journals, journal, categories, category
- *   - Import supports: collections, collection, tags, labels
+ * HTML Template:
+ * - Uses data-entry-field attributes for field markers
+ * - Uses HTML comment markers for field boundaries
+ * - Includes embedded JSON script for meta fields (status, journals, collections)
  * 
- * EXPLICIT DISTINCTIONS:
- * - Content format: HTML string vs JSON structure (templates use HTML for portability)
- * - Cover image: URL string (templates use coverImageUrl, not image object ID)
- * - Status: Uses exact enum values ('draft', 'published', 'archived')
  * ============================================================
  */
+
+import {
+  ENTRY_FIELD_DEFINITIONS,
+  HTML_FIELD_ATTRIBUTE,
+  VALID_STATUS_VALUES,
+  getFieldDescriptionsFromDefinitions
+} from './entryFieldDefinitions'
 
 export type TemplateFormat = 'json' | 'html'
 
@@ -214,7 +213,7 @@ export function generateTemplate(format: TemplateFormat): TemplateResult {
 
 /**
  * Get a list of all supported fields with their descriptions
- * Useful for UI display
+ * Uses shared definitions from entryFieldDefinitions.ts
  */
 export function getFieldDescriptions(): Array<{
   field: string
@@ -222,14 +221,5 @@ export function getFieldDescriptions(): Array<{
   required: boolean
   description: string
 }> {
-  return [
-    { field: 'title', type: 'string', required: true, description: 'Entry title' },
-    { field: 'excerpt', type: 'string', required: false, description: 'Brief summary or description' },
-    { field: 'coverImageUrl', type: 'string', required: false, description: 'URL to cover image' },
-    { field: 'coverImageAlt', type: 'string', required: false, description: 'Alt text for cover image' },
-    { field: 'content', type: 'HTML string', required: false, description: 'Entry body content' },
-    { field: 'status', type: 'enum', required: false, description: 'draft | published | archived' },
-    { field: 'journals', type: 'string[]', required: false, description: 'Journal names for organization' },
-    { field: 'collections', type: 'string[]', required: false, description: 'Collection names for organization' }
-  ]
+  return getFieldDescriptionsFromDefinitions()
 }

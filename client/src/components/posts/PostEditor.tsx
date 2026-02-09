@@ -925,18 +925,37 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     
     const summary = getFieldsSummary(result.fields)
     
-    if (summary.length === 0) {
+    if (summary.length === 0 && (!result.detectedFields || result.detectedFields.length === 0)) {
       setImportError('No mappable fields found in the input. The content may not contain recognizable entry fields.')
       return
     }
     
+    // Build comprehensive preview info
+    const previewLines: string[] = [
+      `Detected format: ${result.detectedFormat?.toUpperCase()}`
+    ]
+    
+    // Show what will be applied
+    if (summary.length > 0) {
+      previewLines.push('', '--- Fields to apply ---')
+      previewLines.push(...summary)
+    }
+    
+    // Show skipped fields if any
+    if (result.skippedFields && result.skippedFields.length > 0) {
+      previewLines.push('', '--- Skipped (existing values kept) ---')
+      previewLines.push(...result.skippedFields.map(f => `• ${f}`))
+    }
+    
+    // Show warnings
+    if (result.warnings && result.warnings.length > 0) {
+      previewLines.push('', '--- Notes ---')
+      previewLines.push(...result.warnings)
+    }
+    
     setImportPreview({
       fields: result.fields,
-      summary: [
-        `Detected format: ${result.detectedFormat?.toUpperCase()}`,
-        ...summary,
-        ...(result.warnings || [])
-      ]
+      summary: previewLines
     })
   }
 
