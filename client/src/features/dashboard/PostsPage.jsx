@@ -1053,8 +1053,10 @@ const PostsPage = () => {
           </div>
 
           {/* ASSIGNMENT ROW - Staging area for batch assignment */}
-          {assignmentRowEntries.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border-2 border-blue-200 p-6">
+          {(selectionMode || assignmentRowEntries.length > 0) && (
+            <div className={`bg-white rounded-lg shadow-sm border-2 p-6 transition-colors ${
+              assignmentRowEntries.length > 0 ? 'border-blue-200' : 'border-dashed border-blue-300 bg-blue-50/30'
+            }`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1063,27 +1065,43 @@ const PostsPage = () => {
                   <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wider">
                     Assignment Queue
                   </h3>
-                  <span className="text-sm text-blue-400">
-                    ({assignmentRowEntries.length} {assignmentRowEntries.length === 1 ? 'entry' : 'entries'})
-                  </span>
+                  {assignmentRowEntries.length > 0 && (
+                    <span className="text-sm text-blue-400">
+                      ({assignmentRowEntries.length} {assignmentRowEntries.length === 1 ? 'entry' : 'entries'})
+                    </span>
+                  )}
                 </div>
-                <button
-                  onClick={() => {
-                    setAssignmentRowEntries([])
-                    setAssignmentJournal(null)
-                    setAssignmentCollection(null)
-                    setAssignmentCollections([])
-                  }}
-                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Clear All
-                </button>
+                {assignmentRowEntries.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setAssignmentRowEntries([])
+                      setAssignmentJournal(null)
+                      setAssignmentCollection(null)
+                      setAssignmentCollections([])
+                    }}
+                    className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear All
+                  </button>
+                )}
               </div>
               
+              {/* Empty state when in selection mode */}
+              {assignmentRowEntries.length === 0 && (
+                <div className="py-6 text-center">
+                  <svg className="w-10 h-10 mx-auto mb-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <p className="text-sm text-blue-500 font-medium">Select entries above, then click "Move"</p>
+                  <p className="text-xs text-blue-400 mt-1">Selected entries will appear here for batch assignment</p>
+                </div>
+              )}
+              
               {/* Entries in assignment queue */}
+              {assignmentRowEntries.length > 0 && (
               <div className="flex flex-wrap gap-3 mb-6">
                 {assignmentRowEntries.map((post) => (
                   <div
@@ -1131,8 +1149,10 @@ const PostsPage = () => {
                   </div>
                 ))}
               </div>
+              )}
               
-              {/* Assignment controls */}
+              {/* Assignment controls - only show when entries are queued */}
+              {assignmentRowEntries.length > 0 && (
               <div className="border-t border-blue-100 pt-4">
                 <p className="text-sm text-gray-600 mb-3">Assign to:</p>
                 <div className="flex flex-wrap items-end gap-4">
@@ -1260,6 +1280,7 @@ const PostsPage = () => {
                   </button>
                 </div>
               </div>
+              )}
             </div>
           )}
 
