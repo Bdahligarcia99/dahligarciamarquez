@@ -33,11 +33,20 @@ export const postsAPI = {
       if (fromDashboard) {
         url += '?from=dashboard'
         // Include auth token for admin access
-        const token = await getSessionToken()
+        // Wait a moment for Supabase to initialize session from localStorage (new tab scenario)
+        let token = await getSessionToken()
+        if (!token) {
+          // Retry after a short delay if session not ready
+          await new Promise(resolve => setTimeout(resolve, 500))
+          token = await getSessionToken()
+        }
         if (token) {
           config.headers = {
             Authorization: `Bearer ${token}`
           }
+          console.log('[API] Viewing post with admin auth')
+        } else {
+          console.warn('[API] No auth token available for dashboard view')
         }
       }
       

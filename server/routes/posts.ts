@@ -158,14 +158,18 @@ router.get('/slug/:slug', async (req, res) => {
     const { slug } = req.params
     const fromDashboard = req.query.from === 'dashboard'
     
+    console.log(`📖 GET /api/posts/slug/${slug} - fromDashboard: ${fromDashboard}`)
+    
     // Check if user is authenticated as admin (for viewing non-published posts from dashboard)
     let isAdmin = false
     if (fromDashboard) {
       const authHeader = req.headers.authorization
+      console.log(`🔑 Auth header present: ${!!authHeader}`)
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.substring(7)
         try {
           const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+          console.log(`👤 User from token: ${user?.email || 'none'}, error: ${authError?.message || 'none'}`)
           if (user && !authError) {
             // Check if user has admin role
             const { data: profile } = await supabaseAdmin
@@ -173,13 +177,16 @@ router.get('/slug/:slug', async (req, res) => {
               .select('role')
               .eq('id', user.id)
               .single()
+            console.log(`📋 Profile role: ${profile?.role || 'none'}`)
             isAdmin = profile?.role === 'admin'
           }
         } catch (authErr) {
-          console.log('Auth check failed, treating as public request')
+          console.log('Auth check failed, treating as public request:', authErr)
         }
       }
     }
+    
+    console.log(`🔓 isAdmin: ${isAdmin}`)
     
     // Build query
     let query = supabaseAdmin
