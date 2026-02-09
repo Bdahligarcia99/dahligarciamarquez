@@ -199,24 +199,16 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         return
       }
       
-      // Check if user is authenticated
-      const { data: sessionData } = await supabase.auth.getSession()
-      console.log('📚 Curator fetch - Session:', sessionData?.session ? 'authenticated' : 'not authenticated')
-      
-      // Try RPC functions first
+      // Try RPC functions first, fall back to direct table access if they fail
       const [journalsResult, collectionsResult] = await Promise.all([
         supabase.rpc('get_all_journals_for_picker'),
         supabase.rpc('get_all_collections_for_picker')
       ])
       
-      console.log('📚 Journals RPC result:', journalsResult)
-      console.log('📚 Collections RPC result:', collectionsResult)
-      
-      // If RPC works, use it
+      // If RPC works, use it; otherwise fall back to direct table access
       if (!journalsResult.error && journalsResult.data) {
         setAvailableJournals(journalsResult.data)
       } else {
-        console.warn('📚 RPC failed, trying direct table access for journals:', journalsResult.error)
         // Fallback: direct table access (subject to RLS)
         const { data: journalsDirect, error: journalsDirectError } = await supabase
           .from('journals')
@@ -224,11 +216,9 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           .order('display_order', { ascending: true })
           .order('name', { ascending: true })
         
-        if (journalsDirectError) {
-          console.error('📚 Direct journals fetch also failed:', journalsDirectError)
-        } else {
+        if (!journalsDirectError && journalsDirect) {
           // Map to expected format
-          const mappedJournals: JournalForPicker[] = (journalsDirect || []).map(j => ({
+          const mappedJournals: JournalForPicker[] = journalsDirect.map(j => ({
             journal_id: j.id,
             journal_name: j.name,
             journal_slug: j.slug || '',
@@ -240,14 +230,12 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             collection_count: 0
           }))
           setAvailableJournals(mappedJournals)
-          console.log('📚 Loaded journals via direct access:', mappedJournals.length)
         }
       }
       
       if (!collectionsResult.error && collectionsResult.data) {
         setAvailableCollections(collectionsResult.data)
       } else {
-        console.warn('📚 RPC failed, trying direct table access for collections:', collectionsResult.error)
         // Fallback: direct table access with journal join
         const { data: collectionsDirect, error: collectionsDirectError } = await supabase
           .from('collections')
@@ -258,11 +246,9 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           .order('display_order', { ascending: true })
           .order('name', { ascending: true })
         
-        if (collectionsDirectError) {
-          console.error('📚 Direct collections fetch also failed:', collectionsDirectError)
-        } else {
+        if (!collectionsDirectError && collectionsDirect) {
           // Map to expected format
-          const mappedCollections: CollectionForPicker[] = (collectionsDirect || []).map((c: any) => ({
+          const mappedCollections: CollectionForPicker[] = collectionsDirect.map((c: any) => ({
             collection_id: c.id,
             collection_name: c.name,
             collection_slug: c.slug || '',
@@ -276,11 +262,10 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             entry_count: 0
           }))
           setAvailableCollections(mappedCollections)
-          console.log('📚 Loaded collections via direct access:', mappedCollections.length)
         }
       }
     } catch (error) {
-      console.error('📚 Error fetching curator data:', error)
+      console.error('Error fetching curator data:', error)
     } finally {
       setCuratorLoading(false)
     }
@@ -1674,10 +1659,6 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         </div>
 
         {/* Curator Organization (Journals & Collections) */}
-        {/* Debug: log current state */}
-        {console.log('📚 RENDER - availableJournals:', availableJournals.length, availableJournals)}
-        {console.log('📚 RENDER - availableCollections:', availableCollections.length, availableCollections)}
-        {console.log('📚 RENDER - curatorLoading:', curatorLoading)}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-gray-700">
