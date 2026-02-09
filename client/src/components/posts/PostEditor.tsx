@@ -194,20 +194,93 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     setCuratorLoading(true)
     try {
       const supabase = getSupabaseClient()
+      if (!supabase) {
+        console.error('Supabase client not available')
+        return
+      }
       
-      // Fetch both in parallel
+      // Check if user is authenticated
+      const { data: sessionData } = await supabase.auth.getSession()
+      console.log('📚 Curator fetch - Session:', sessionData?.session ? 'authenticated' : 'not authenticated')
+      
+      // Try RPC functions first
       const [journalsResult, collectionsResult] = await Promise.all([
         supabase.rpc('get_all_journals_for_picker'),
         supabase.rpc('get_all_collections_for_picker')
       ])
       
-      if (journalsResult.error) throw journalsResult.error
-      if (collectionsResult.error) throw collectionsResult.error
+      console.log('📚 Journals RPC result:', journalsResult)
+      console.log('📚 Collections RPC result:', collectionsResult)
       
-      setAvailableJournals(journalsResult.data || [])
-      setAvailableCollections(collectionsResult.data || [])
+      // If RPC works, use it
+      if (!journalsResult.error && journalsResult.data) {
+        setAvailableJournals(journalsResult.data)
+      } else {
+        console.warn('📚 RPC failed, trying direct table access for journals:', journalsResult.error)
+        // Fallback: direct table access (subject to RLS)
+        const { data: journalsDirect, error: journalsDirectError } = await supabase
+          .from('journals')
+          .select('id, name, slug, icon_emoji, icon_type, icon_image_url, status')
+          .order('display_order', { ascending: true })
+          .order('name', { ascending: true })
+        
+        if (journalsDirectError) {
+          console.error('📚 Direct journals fetch also failed:', journalsDirectError)
+        } else {
+          // Map to expected format
+          const mappedJournals: JournalForPicker[] = (journalsDirect || []).map(j => ({
+            journal_id: j.id,
+            journal_name: j.name,
+            journal_slug: j.slug || '',
+            journal_icon_emoji: j.icon_emoji || '📚',
+            journal_icon_type: j.icon_type || 'emoji',
+            journal_icon_image_url: j.icon_image_url,
+            journal_status: j.status || 'draft',
+            entry_count: 0,
+            collection_count: 0
+          }))
+          setAvailableJournals(mappedJournals)
+          console.log('📚 Loaded journals via direct access:', mappedJournals.length)
+        }
+      }
+      
+      if (!collectionsResult.error && collectionsResult.data) {
+        setAvailableCollections(collectionsResult.data)
+      } else {
+        console.warn('📚 RPC failed, trying direct table access for collections:', collectionsResult.error)
+        // Fallback: direct table access with journal join
+        const { data: collectionsDirect, error: collectionsDirectError } = await supabase
+          .from('collections')
+          .select(`
+            id, name, slug, icon_emoji, status, journal_id,
+            journals:journal_id (id, name, icon_emoji, icon_type, status)
+          `)
+          .order('display_order', { ascending: true })
+          .order('name', { ascending: true })
+        
+        if (collectionsDirectError) {
+          console.error('📚 Direct collections fetch also failed:', collectionsDirectError)
+        } else {
+          // Map to expected format
+          const mappedCollections: CollectionForPicker[] = (collectionsDirect || []).map((c: any) => ({
+            collection_id: c.id,
+            collection_name: c.name,
+            collection_slug: c.slug || '',
+            collection_icon_emoji: c.icon_emoji || '📁',
+            collection_status: c.status || 'draft',
+            journal_id: c.journal_id,
+            journal_name: c.journals?.name || '',
+            journal_icon_emoji: c.journals?.icon_emoji || '📚',
+            journal_icon_type: c.journals?.icon_type || 'emoji',
+            journal_status: c.journals?.status || 'draft',
+            entry_count: 0
+          }))
+          setAvailableCollections(mappedCollections)
+          console.log('📚 Loaded collections via direct access:', mappedCollections.length)
+        }
+      }
     } catch (error) {
-      console.error('Error fetching curator data:', error)
+      console.error('📚 Error fetching curator data:', error)
     } finally {
       setCuratorLoading(false)
     }
