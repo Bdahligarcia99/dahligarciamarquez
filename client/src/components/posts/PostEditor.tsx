@@ -19,6 +19,23 @@ import { compressImageFromUrl } from '../../lib/compressionApi'
 // Session-based state for preview preferences
 let sessionCoverPreviewState = false
 
+// Storage key for preserving draft state when navigating to Curator
+const DRAFT_STORAGE_KEY = 'entry_editor_draft'
+
+// Interface for draft state
+interface DraftState {
+  title: string
+  excerpt: string
+  coverImageUrl: string
+  coverImageAlt: string
+  content: { json: any; html: string } | null
+  status: 'draft' | 'published' | 'archived'
+  selectedJournals: string[]
+  selectedCollections: string[]
+  postId: string | null
+  timestamp: number
+}
+
 interface Label {
   id: string
   name: string
@@ -667,6 +684,8 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         // Edit existing post
         savedPost = await supabaseAdminPatch(`/api/posts/${postId}`, postData)
         setError(null)
+        // Clear any saved draft since we've successfully saved
+        clearDraftState()
         // Show success message briefly
         setSuccessMessage('Post saved successfully!')
         setTimeout(() => setSuccessMessage(null), 3000)
@@ -702,6 +721,9 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             }
           }
         }
+        
+        // Clear any saved draft since we've successfully created
+        clearDraftState()
         
         // Navigate back to entries list after creation
         navigate('/dashboard/posts')
@@ -1264,11 +1286,98 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     }
   }
 
+  // Save draft state to sessionStorage before navigating to Curator
+  const saveDraftState = () => {
+    const draftState: DraftState = {
+      title,
+      excerpt,
+      coverImageUrl,
+      coverImageAlt,
+      content,
+      status,
+      selectedJournals,
+      selectedCollections,
+      postId: postId || null,
+      timestamp: Date.now()
+    }
+    sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftState))
+  }
+
+  // Restore draft state from sessionStorage
+  const restoreDraftState = (): boolean => {
+    try {
+      const saved = sessionStorage.getItem(DRAFT_STORAGE_KEY)
+      if (!saved) return false
+      
+      const draftState: DraftState = JSON.parse(saved)
+      
+      // Only restore if it's for the same post (or both are new entries)
+      const currentPostId = postId || null
+      if (draftState.postId !== currentPostId) {
+        sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+        return false
+      }
+      
+      // Check if draft is recent (within 30 minutes)
+      const thirtyMinutes = 30 * 60 * 1000
+      if (Date.now() - draftState.timestamp > thirtyMinutes) {
+        sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+        return false
+      }
+      
+      // Restore the state
+      setTitle(draftState.title)
+      setExcerpt(draftState.excerpt)
+      setCoverImageUrl(draftState.coverImageUrl)
+      setCoverImageAlt(draftState.coverImageAlt)
+      setContent(draftState.content)
+      setStatus(draftState.status)
+      setSelectedJournals(draftState.selectedJournals)
+      setSelectedCollections(draftState.selectedCollections)
+      
+      // Update the editor content if we have HTML
+      if (draftState.content?.html && editorRef.current?.editor) {
+        setTimeout(() => {
+          editorRef.current?.editor?.commands.setContent(draftState.content?.html || '')
+        }, 100)
+      }
+      
+      // Clear the saved draft
+      sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+      return true
+    } catch (error) {
+      console.error('Error restoring draft:', error)
+      sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+      return false
+    }
+  }
+
+  // Clear draft state (call when saving or leaving without intent to return)
+  const clearDraftState = () => {
+    sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+  }
+
+  // Navigate to Curator while preserving draft state
+  const navigateToCurator = () => {
+    saveDraftState()
+    navigate('/dashboard/posts', { 
+      state: { fromEditor: true, returnToPostId: postId } 
+    })
+  }
+
   useEffect(() => {
     fetchLabels()
     fetchCuratorData()
-    if (postId) {
+    
+    // Try to restore draft state first (for returning from Curator)
+    const restored = restoreDraftState()
+    
+    if (postId && !restored) {
+      // Only fetch from server if we didn't restore from draft
       fetchPost()
+      fetchPostCuratorAssignments(postId)
+    } else if (postId && restored) {
+      // Still fetch curator assignments even if we restored draft
       fetchPostCuratorAssignments(postId)
     }
   }, [postId])
@@ -1338,9 +1447,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           {/* View Curator Button */}
           <button
             type="button"
-            onClick={() => navigate('/dashboard/posts', { 
-              state: { fromEditor: true, returnToPostId: postId } 
-            })}
+            onClick={navigateToCurator}
             className="px-3 py-2 text-sm font-medium bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-2"
             title="View and manage Journals & Collections"
           >
@@ -1971,9 +2078,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/dashboard/posts', { 
-                state: { fromEditor: true, returnToPostId: postId } 
-              })}
+              onClick={navigateToCurator}
               className="px-4 py-2 border border-purple-300 rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 flex items-center gap-2"
               title="View and manage Journals & Collections"
             >
