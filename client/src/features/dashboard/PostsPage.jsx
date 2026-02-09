@@ -61,6 +61,9 @@ const PostsPage = () => {
   const [showEntryActionModal, setShowEntryActionModal] = useState(false)
   const [showAttributesView, setShowAttributesView] = useState(false)
   const [selectedPostsToAdd, setSelectedPostsToAdd] = useState([]) // For add entry modal
+  
+  // Post organization assignments (for entries table display)
+  const [postAssignments, setPostAssignments] = useState({}) // { postId: { journals: [...], collections: [...] } }
 
   useEffect(() => {
     fetchPosts()
@@ -136,12 +139,99 @@ const PostsPage = () => {
       setError(null)
       const postsData = await supabaseAdminGet('/api/posts/admin')
       // Handle both old format (array) and new format (object with items)
-      setPosts(Array.isArray(postsData) ? postsData : postsData.items || [])
+      const postsArray = Array.isArray(postsData) ? postsData : postsData.items || []
+      setPosts(postsArray)
+      
+      // Fetch organization assignments for all posts
+      if (postsArray.length > 0) {
+        await fetchPostAssignments(postsArray.map(p => p.id))
+      }
     } catch (err) {
       console.error('Failed to fetch posts:', err)
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+  
+  // Fetch journal and collection assignments for posts
+  const fetchPostAssignments = async (postIds) => {
+    const supabase = getSupabaseClient()
+    if (!supabase || postIds.length === 0) return
+    
+    try {
+      // Fetch journal assignments
+      const { data: journalEntries, error: journalError } = await supabase
+        .from('journal_entries')
+        .select(`
+          post_id,
+          journals (
+            id,
+            name,
+            icon_emoji
+          )
+        `)
+        .in('post_id', postIds)
+      
+      if (journalError) {
+        console.error('Error fetching journal assignments:', journalError)
+      }
+      
+      // Fetch collection assignments
+      const { data: collectionEntries, error: collectionError } = await supabase
+        .from('collection_entries')
+        .select(`
+          post_id,
+          collections (
+            id,
+            name,
+            icon_emoji,
+            journal_id,
+            journals (
+              id,
+              name,
+              icon_emoji
+            )
+          )
+        `)
+        .in('post_id', postIds)
+      
+      if (collectionError) {
+        console.error('Error fetching collection assignments:', collectionError)
+      }
+      
+      // Build assignments map
+      const assignments = {}
+      
+      // Initialize all posts with empty arrays
+      postIds.forEach(id => {
+        assignments[id] = { journals: [], collections: [] }
+      })
+      
+      // Add journal assignments
+      if (journalEntries) {
+        journalEntries.forEach(entry => {
+          if (entry.journals && assignments[entry.post_id]) {
+            assignments[entry.post_id].journals.push(entry.journals)
+          }
+        })
+      }
+      
+      // Add collection assignments
+      if (collectionEntries) {
+        collectionEntries.forEach(entry => {
+          if (entry.collections && assignments[entry.post_id]) {
+            assignments[entry.post_id].collections.push({
+              ...entry.collections,
+              journal: entry.collections.journals
+            })
+          }
+        })
+      }
+      
+      setPostAssignments(assignments)
+    } catch (err) {
+      console.error('Error fetching post assignments:', err)
     }
   }
 
@@ -595,18 +685,7 @@ const PostsPage = () => {
                         </span>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setOrganizationView('journal')}
-                            className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                              organizationView === 'journal'
-                                ? 'bg-blue-100 text-blue-700 font-semibold'
-                                : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                          >
-                            Journal
-                          </button>
-                        </div>
+                        Organization
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -649,18 +728,56 @@ const PostsPage = () => {
                             <option value="archived">Archived</option>
                           </select>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {organizationView === 'journal' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
-                              <span className="text-gray-400">—</span>
-                              <span className="text-gray-500">Unassigned</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
-                              <span className="text-gray-400">—</span>
-                              <span className="text-gray-500">Unassigned</span>
-                            </span>
-                          )}
+                        <td className="px-6 py-4 text-sm">
+                          {(() => {
+                            const assignments = postAssignments[post.id] || { journals: [], collections: [] }
+                            const hasJournals = assignments.journals.length > 0
+                            const hasCollections = assignments.collections.length > 0
+                            
+                            if (!hasJournals && !hasCollections) {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                                  <span className="text-gray-400">—</span>
+                                  <span className="text-gray-500">Unassigned</span>
+                                </span>
+                              )
+                            }
+                            
+                            return (
+                              <div className="flex flex-col gap-1">
+                                {/* Journals */}
+                                {hasJournals && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {assignments.journals.map(journal => (
+                                      <span 
+                                        key={journal.id}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs"
+                                        title={`Journal: ${journal.name}`}
+                                      >
+                                        <span>{journal.icon_emoji || '📚'}</span>
+                                        <span className="max-w-[100px] truncate">{journal.name}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Collections */}
+                                {hasCollections && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {assignments.collections.map(collection => (
+                                      <span 
+                                        key={collection.id}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs"
+                                        title={`Collection: ${collection.name} (in ${collection.journal?.name || 'Unknown Journal'})`}
+                                      >
+                                        <span>{collection.icon_emoji || '📁'}</span>
+                                        <span className="max-w-[100px] truncate">{collection.name}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-right space-x-3">
                           <button
