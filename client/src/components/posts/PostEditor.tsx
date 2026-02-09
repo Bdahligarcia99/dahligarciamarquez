@@ -964,6 +964,42 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       setStatus(fields.status)
     }
     
+    // Match imported journal names against available journals (case-insensitive)
+    if (fields.journals && fields.journals.length > 0) {
+      const matchedJournalIds: string[] = []
+      for (const importedName of fields.journals) {
+        const normalizedImport = importedName.toLowerCase().trim()
+        const match = availableJournals.find(j => 
+          j.journal_name.toLowerCase().trim() === normalizedImport ||
+          j.journal_slug?.toLowerCase() === normalizedImport
+        )
+        if (match) {
+          matchedJournalIds.push(match.journal_id)
+        }
+      }
+      if (matchedJournalIds.length > 0) {
+        setSelectedJournals(prev => [...new Set([...prev, ...matchedJournalIds])])
+      }
+    }
+    
+    // Match imported collection names against available collections (case-insensitive)
+    if (fields.collections && fields.collections.length > 0) {
+      const matchedCollectionIds: string[] = []
+      for (const importedName of fields.collections) {
+        const normalizedImport = importedName.toLowerCase().trim()
+        const match = availableCollections.find(c => 
+          c.collection_name.toLowerCase().trim() === normalizedImport ||
+          c.collection_slug?.toLowerCase() === normalizedImport
+        )
+        if (match) {
+          matchedCollectionIds.push(match.collection_id)
+        }
+      }
+      if (matchedCollectionIds.length > 0) {
+        setSelectedCollections(prev => [...new Set([...prev, ...matchedCollectionIds])])
+      }
+    }
+    
     setSuccessMessage('Content imported successfully!')
     setTimeout(() => setSuccessMessage(null), 3000)
     
@@ -1847,14 +1883,21 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
               )}
 
               {/* Help text */}
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
                 <p className="text-xs text-blue-700">
                   <strong>JSON keys recognized:</strong> title, name, heading, excerpt, summary, description, 
                   coverImageUrl, cover, image, content, body, html, text, status, published
                 </p>
-                <p className="text-xs text-blue-700 mt-1">
+                <p className="text-xs text-blue-700">
+                  <strong>Organization:</strong> journals, journal, categories → Journals; 
+                  collections, collection, tags, labels → Collections
+                </p>
+                <p className="text-xs text-blue-700">
                   <strong>HTML extraction:</strong> First &lt;h1&gt; → title, first &lt;img&gt; → cover image, 
                   first &lt;p&gt; → excerpt (if short), remaining → content
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  <em>Note: Journal/Collection names are matched against existing items (case-insensitive).</em>
                 </p>
               </div>
             </div>

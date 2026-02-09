@@ -282,5 +282,118 @@ describe('Import Parser Utilities', () => {
       expect(summary[0]).toContain('...')
       expect(summary[0].length).toBeLessThan(80)
     })
+
+    test('includes journals and collections in summary', () => {
+      const fields = {
+        title: 'Test',
+        journals: ['Fiction', 'Poetry'],
+        collections: ['Short Stories', 'Haiku']
+      }
+      
+      const summary = getFieldsSummary(fields)
+      
+      expect(summary).toContain('Journals: Fiction, Poetry')
+      expect(summary).toContain('Collections: Short Stories, Haiku')
+    })
+  })
+
+  describe('Organization parsing (journals/collections)', () => {
+    test('parses journals array from JSON', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        journals: ['Fiction', 'Poetry']
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.journals).toEqual(['Fiction', 'Poetry'])
+    })
+
+    test('parses single journal string', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        journal: 'Fiction'
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.journals).toEqual(['Fiction'])
+    })
+
+    test('parses comma-separated journal string', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        journals: 'Fiction, Poetry, Essays'
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.journals).toEqual(['Fiction', 'Poetry', 'Essays'])
+    })
+
+    test('parses categories as journals', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        categories: ['Category 1', 'Category 2']
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.journals).toEqual(['Category 1', 'Category 2'])
+    })
+
+    test('parses collections array from JSON', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        collections: ['Short Stories', 'Novellas']
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.collections).toEqual(['Short Stories', 'Novellas'])
+    })
+
+    test('parses tags as collections', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        tags: ['tag1', 'tag2', 'tag3']
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.collections).toEqual(['tag1', 'tag2', 'tag3'])
+    })
+
+    test('parses labels as collections', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        labels: 'label1, label2'
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.collections).toEqual(['label1', 'label2'])
+    })
+
+    test('parses journal/collection objects with name property', () => {
+      const input = JSON.stringify({
+        title: 'Test',
+        journals: [{ name: 'Fiction' }, { name: 'Poetry' }],
+        collections: [{ name: 'Short Stories', id: 123 }]
+      })
+      
+      const result = parseImportContent(input, 'json', false)
+      
+      expect(result.success).toBe(true)
+      expect(result.fields.journals).toEqual(['Fiction', 'Poetry'])
+      expect(result.fields.collections).toEqual(['Short Stories'])
+    })
   })
 })

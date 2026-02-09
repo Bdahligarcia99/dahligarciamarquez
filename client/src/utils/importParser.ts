@@ -11,6 +11,9 @@ export interface ParsedEntryFields {
   coverImageAlt?: string
   content?: { json: any; html: string }
   status?: 'draft' | 'published' | 'archived'
+  // Organization (Curator labeling system)
+  journals?: string[]      // Array of journal names to match/create
+  collections?: string[]   // Array of collection names to match/create
 }
 
 export interface ParseResult {
@@ -166,6 +169,36 @@ function mapJsonToFields(data: any, overwrite: boolean, currentFields: ParsedEnt
     result.status = 'draft'
   }
   
+  // Map journals (accept: journals, journal, categories, category)
+  const journalsValue = data.journals || data.journal || data.categories || data.category
+  if (journalsValue) {
+    if (Array.isArray(journalsValue)) {
+      // Array of strings or objects with name property
+      result.journals = journalsValue
+        .map((j: any) => typeof j === 'string' ? j : j?.name || j?.title)
+        .filter((j: any) => typeof j === 'string' && j.trim())
+        .map((j: string) => j.trim())
+    } else if (typeof journalsValue === 'string') {
+      // Single string or comma-separated list
+      result.journals = journalsValue.split(',').map(j => j.trim()).filter(j => j)
+    }
+  }
+  
+  // Map collections (accept: collections, collection, tags, labels, label)
+  const collectionsValue = data.collections || data.collection || data.tags || data.labels || data.label
+  if (collectionsValue) {
+    if (Array.isArray(collectionsValue)) {
+      // Array of strings or objects with name property
+      result.collections = collectionsValue
+        .map((c: any) => typeof c === 'string' ? c : c?.name || c?.title)
+        .filter((c: any) => typeof c === 'string' && c.trim())
+        .map((c: string) => c.trim())
+    } else if (typeof collectionsValue === 'string') {
+      // Single string or comma-separated list
+      result.collections = collectionsValue.split(',').map(c => c.trim()).filter(c => c)
+    }
+  }
+  
   return result
 }
 
@@ -318,6 +351,12 @@ export function getFieldsSummary(fields: ParsedEntryFields): string[] {
   if (fields.coverImageAlt) summary.push(`Cover Alt: "${fields.coverImageAlt}"`)
   if (fields.content) summary.push(`Content: ${fields.content.html ? 'HTML content' : 'JSON content'}`)
   if (fields.status) summary.push(`Status: ${fields.status}`)
+  if (fields.journals && fields.journals.length > 0) {
+    summary.push(`Journals: ${fields.journals.join(', ')}`)
+  }
+  if (fields.collections && fields.collections.length > 0) {
+    summary.push(`Collections: ${fields.collections.join(', ')}`)
+  }
   
   return summary
 }
