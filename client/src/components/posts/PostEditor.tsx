@@ -36,6 +36,33 @@ interface DraftState {
   timestamp: number
 }
 
+// Helper to get initial draft (called before component state initializes)
+function getInitialDraft(postId: string | undefined): DraftState | null {
+  try {
+    const saved = sessionStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!saved) return null
+    
+    const draftState: DraftState = JSON.parse(saved)
+    
+    // Only restore if it's for the same post (or both are new entries)
+    const currentPostId = postId || null
+    if (draftState.postId !== currentPostId) {
+      return null
+    }
+    
+    // Check if draft is recent (within 30 minutes)
+    const thirtyMinutes = 30 * 60 * 1000
+    if (Date.now() - draftState.timestamp > thirtyMinutes) {
+      return null
+    }
+    
+    return draftState
+  } catch (error) {
+    console.error('Error reading draft:', error)
+    return null
+  }
+}
+
 interface Label {
   id: string
   name: string
@@ -96,20 +123,26 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const { user, profile } = useAuth()
   const postId = routePostId
   const editorRef = useRef<RichTextEditorRef>(null)
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState<{ json: any; html: string } | null>(null)
-  const [excerpt, setExcerpt] = useState('')
-  const [coverImageUrl, setCoverImageUrl] = useState('')
-  const [coverImageAlt, setCoverImageAlt] = useState('')
-  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
+  
+  // Check for initial draft BEFORE state initializes (for returning from Curator)
+  const initialDraftRef = useRef<DraftState | null>(getInitialDraft(routePostId))
+  const initialDraft = initialDraftRef.current
+  
+  // Initialize state from draft if available, otherwise use defaults
+  const [title, setTitle] = useState(initialDraft?.title ?? '')
+  const [content, setContent] = useState<{ json: any; html: string } | null>(initialDraft?.content ?? null)
+  const [excerpt, setExcerpt] = useState(initialDraft?.excerpt ?? '')
+  const [coverImageUrl, setCoverImageUrl] = useState(initialDraft?.coverImageUrl ?? '')
+  const [coverImageAlt, setCoverImageAlt] = useState(initialDraft?.coverImageAlt ?? '')
+  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>(initialDraft?.status ?? 'draft')
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [availableLabels, setAvailableLabels] = useState<Label[]>([])
   
   // Curator state (new labeling system)
   const [availableJournals, setAvailableJournals] = useState<JournalForPicker[]>([])
-  const [selectedJournals, setSelectedJournals] = useState<string[]>([])
+  const [selectedJournals, setSelectedJournals] = useState<string[]>(initialDraft?.selectedJournals ?? [])
   const [availableCollections, setAvailableCollections] = useState<CollectionForPicker[]>([])
-  const [selectedCollections, setSelectedCollections] = useState<string[]>([])
+  const [selectedCollections, setSelectedCollections] = useState<string[]>(initialDraft?.selectedCollections ?? [])
   const [curatorLoading, setCuratorLoading] = useState(false)
   
   // Inline creation state
@@ -1303,53 +1336,13 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftState))
   }
 
-  // Restore draft state from sessionStorage
-  const restoreDraftState = (): boolean => {
-    try {
-      const saved = sessionStorage.getItem(DRAFT_STORAGE_KEY)
-      if (!saved) return false
-      
-      const draftState: DraftState = JSON.parse(saved)
-      
-      // Only restore if it's for the same post (or both are new entries)
-      const currentPostId = postId || null
-      if (draftState.postId !== currentPostId) {
-        sessionStorage.removeItem(DRAFT_STORAGE_KEY)
-        return false
-      }
-      
-      // Check if draft is recent (within 30 minutes)
-      const thirtyMinutes = 30 * 60 * 1000
-      if (Date.now() - draftState.timestamp > thirtyMinutes) {
-        sessionStorage.removeItem(DRAFT_STORAGE_KEY)
-        return false
-      }
-      
-      // Restore the state
-      setTitle(draftState.title)
-      setExcerpt(draftState.excerpt)
-      setCoverImageUrl(draftState.coverImageUrl)
-      setCoverImageAlt(draftState.coverImageAlt)
-      setContent(draftState.content)
-      setStatus(draftState.status)
-      setSelectedJournals(draftState.selectedJournals)
-      setSelectedCollections(draftState.selectedCollections)
-      
-      // Update the editor content if we have HTML
-      if (draftState.content?.html && editorRef.current?.editor) {
-        setTimeout(() => {
-          editorRef.current?.editor?.commands.setContent(draftState.content?.html || '')
-        }, 100)
-      }
-      
-      // Clear the saved draft
+  // Clear draft from sessionStorage after it's been used for initial state
+  const clearRestoredDraft = (): boolean => {
+    if (initialDraftRef.current) {
       sessionStorage.removeItem(DRAFT_STORAGE_KEY)
       return true
-    } catch (error) {
-      console.error('Error restoring draft:', error)
-      sessionStorage.removeItem(DRAFT_STORAGE_KEY)
-      return false
     }
+    return false
   }
 
   // Clear draft state (call when saving or leaving without intent to return)
@@ -1369,14 +1362,14 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     fetchLabels()
     fetchCuratorData()
     
-    // Try to restore draft state first (for returning from Curator)
-    const restored = restoreDraftState()
+    // Check if draft was restored via initial state
+    const restoredFromDraft = clearRestoredDraft()
     
-    if (postId && !restored) {
+    if (postId && !restoredFromDraft) {
       // Only fetch from server if we didn't restore from draft
       fetchPost()
       fetchPostCuratorAssignments(postId)
-    } else if (postId && restored) {
+    } else if (postId && restoredFromDraft) {
       // Still fetch curator assignments even if we restored draft
       fetchPostCuratorAssignments(postId)
     }
