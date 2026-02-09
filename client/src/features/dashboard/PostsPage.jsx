@@ -867,6 +867,99 @@ const PostsPage = () => {
             </div>
           )}
           
+          {/* UNASSIGNED ENTRIES - Shows actual posts from database */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <button
+              onClick={() => setShowUnassigned(!showUnassigned)}
+              className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span className="font-medium text-gray-700">Unassigned Entries</span>
+                <span className="text-sm text-gray-400">
+                  ({loading ? '...' : posts.length})
+                </span>
+              </div>
+              <svg 
+                className={`w-5 h-5 text-gray-400 transition-transform ${showUnassigned ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showUnassigned && (
+              <div className="px-6 pb-6 border-t border-gray-100">
+                {loading ? (
+                  <div className="py-8 text-center text-gray-400">
+                    <svg className="w-6 h-6 animate-spin mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Loading entries...
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="py-8 text-center text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-sm">No entries found</p>
+                    <button 
+                      onClick={() => navigate('/dashboard/posts/new')}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Create your first entry →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-4 pt-4">
+                    {posts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 relative group cursor-pointer hover:border-gray-300 hover:bg-gray-100 transition-colors"
+                        onClick={() => {
+                          setSelectedEntryForAction(post)
+                          setShowEntryActionModal(true)
+                          setShowAttributesView(false)
+                        }}
+                        title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}`}
+                      >
+                        {/* Status indicator */}
+                        <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${
+                          post.status === 'published' ? 'bg-green-500' :
+                          post.status === 'private' ? 'bg-purple-500' :
+                          post.status === 'system' ? 'bg-blue-500' :
+                          post.status === 'archived' ? 'bg-gray-400' :
+                          'bg-yellow-500'
+                        }`} title={post.status || 'draft'} />
+                        
+                        {/* Cover image or icon */}
+                        {post.cover_image_url ? (
+                          <img 
+                            src={post.cover_image_url} 
+                            alt=""
+                            className="w-10 h-10 object-cover rounded mb-1"
+                          />
+                        ) : (
+                          <svg className="w-8 h-8 mb-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        )}
+                        
+                        <span className="text-xs font-medium text-center px-1 truncate w-full">
+                          {post.title || 'Untitled'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* JOURNALS ROW */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
@@ -1016,99 +1109,6 @@ const PostsPage = () => {
                 
                 {collectionEntries.length === 0 && (
                   <p className="text-sm text-gray-400 self-center ml-4">No entries in this collection yet</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* UNASSIGNED ENTRIES - Shows actual posts from database */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <button
-              onClick={() => setShowUnassigned(!showUnassigned)}
-              className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <span className="font-medium text-gray-700">Unassigned Entries</span>
-                <span className="text-sm text-gray-400">
-                  ({loading ? '...' : posts.length})
-                </span>
-              </div>
-              <svg 
-                className={`w-5 h-5 text-gray-400 transition-transform ${showUnassigned ? 'rotate-180' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            
-            {showUnassigned && (
-              <div className="px-6 pb-6 border-t border-gray-100">
-                {loading ? (
-                  <div className="py-8 text-center text-gray-400">
-                    <svg className="w-6 h-6 animate-spin mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Loading entries...
-                  </div>
-                ) : posts.length === 0 ? (
-                  <div className="py-8 text-center text-gray-400">
-                    <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p className="text-sm">No entries found</p>
-                    <button 
-                      onClick={() => navigate('/dashboard/posts/new')}
-                      className="mt-2 text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      Create your first entry →
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-4 pt-4">
-                    {posts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 relative group cursor-pointer hover:border-gray-300 hover:bg-gray-100 transition-colors"
-                        onClick={() => {
-                          setSelectedEntryForAction(post)
-                          setShowEntryActionModal(true)
-                          setShowAttributesView(false)
-                        }}
-                        title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}`}
-                      >
-                        {/* Status indicator */}
-                        <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ${
-                          post.status === 'published' ? 'bg-green-500' :
-                          post.status === 'private' ? 'bg-purple-500' :
-                          post.status === 'system' ? 'bg-blue-500' :
-                          post.status === 'archived' ? 'bg-gray-400' :
-                          'bg-yellow-500'
-                        }`} title={post.status || 'draft'} />
-                        
-                        {/* Cover image or icon */}
-                        {post.cover_image_url ? (
-                          <img 
-                            src={post.cover_image_url} 
-                            alt=""
-                            className="w-10 h-10 object-cover rounded mb-1"
-                          />
-                        ) : (
-                          <svg className="w-8 h-8 mb-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        )}
-                        
-                        <span className="text-xs font-medium text-center px-1 truncate w-full">
-                          {post.title || 'Untitled'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
             )}
