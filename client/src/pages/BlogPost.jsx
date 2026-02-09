@@ -32,7 +32,8 @@ const BlogPost = () => {
     const fetchPost = async () => {
       try {
         setLoading(true)
-        const data = await postsAPI.getPostBySlug(slug)
+        // Pass fromDashboard flag to allow viewing non-published posts when coming from dashboard
+        const data = await postsAPI.getPostBySlug(slug, fromDashboard)
         // Handle API response format: { post: {...} }
         const postData = data?.post || data
         setPost(postData)
@@ -58,7 +59,7 @@ const BlogPost = () => {
     }
 
     fetchPost()
-  }, [slug])
+  }, [slug, fromDashboard])
 
   if (loading) {
     return <LoadingSpinner text="Loading story..." />

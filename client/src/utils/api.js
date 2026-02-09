@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getSessionToken } from '../lib/supabase'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
@@ -23,9 +24,24 @@ export const postsAPI = {
   },
 
   // Get single post by slug
-  getPostBySlug: async (slug) => {
+  // fromDashboard: if true, includes auth token to allow viewing non-published posts
+  getPostBySlug: async (slug, fromDashboard = false) => {
     try {
-      const response = await api.get(`/posts/slug/${slug}`)
+      const config = {}
+      let url = `/posts/slug/${slug}`
+      
+      if (fromDashboard) {
+        url += '?from=dashboard'
+        // Include auth token for admin access
+        const token = await getSessionToken()
+        if (token) {
+          config.headers = {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+      
+      const response = await api.get(url, config)
       return response.data
     } catch (error) {
       console.error('Error fetching post:', error)
