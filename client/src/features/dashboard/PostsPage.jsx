@@ -1806,13 +1806,13 @@ const PostsPage = () => {
                       {/* Status */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={async () => {
                               await handleStatusChange(selectedEntryForAction.id, 'draft')
                               setSelectedEntryForAction({...selectedEntryForAction, status: 'draft'})
                             }}
-                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                            className={`flex-1 min-w-[80px] px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                               selectedEntryForAction.status === 'draft' || !selectedEntryForAction.status
                                 ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
                                 : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -1825,7 +1825,7 @@ const PostsPage = () => {
                               await handleStatusChange(selectedEntryForAction.id, 'published')
                               setSelectedEntryForAction({...selectedEntryForAction, status: 'published'})
                             }}
-                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                            className={`flex-1 min-w-[80px] px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                               selectedEntryForAction.status === 'published'
                                 ? 'bg-green-50 border-green-300 text-green-700'
                                 : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
@@ -1838,13 +1838,39 @@ const PostsPage = () => {
                               await handleStatusChange(selectedEntryForAction.id, 'archived')
                               setSelectedEntryForAction({...selectedEntryForAction, status: 'archived'})
                             }}
-                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                            className={`flex-1 min-w-[80px] px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
                               selectedEntryForAction.status === 'archived'
                                 ? 'bg-gray-100 border-gray-400 text-gray-700'
                                 : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                             }`}
                           >
                             Archived
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await handleStatusChange(selectedEntryForAction.id, 'private')
+                              setSelectedEntryForAction({...selectedEntryForAction, status: 'private'})
+                            }}
+                            className={`flex-1 min-w-[80px] px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                              selectedEntryForAction.status === 'private'
+                                ? 'bg-purple-50 border-purple-300 text-purple-700'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            Private
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await handleStatusChange(selectedEntryForAction.id, 'system')
+                              setSelectedEntryForAction({...selectedEntryForAction, status: 'system'})
+                            }}
+                            className={`flex-1 min-w-[80px] px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                              selectedEntryForAction.status === 'system'
+                                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            System
                           </button>
                         </div>
                       </div>
