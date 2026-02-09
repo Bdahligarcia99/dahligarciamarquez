@@ -744,33 +744,36 @@ const PostsPage = () => {
                             }
                             
                             return (
-                              <div className="flex flex-col gap-1">
-                                {/* Journals */}
+                              <div className="flex flex-col gap-1.5">
+                                {/* Journals (direct assignments) */}
                                 {hasJournals && (
                                   <div className="flex flex-wrap gap-1">
                                     {assignments.journals.map(journal => (
                                       <span 
                                         key={journal.id}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs"
                                         title={`Journal: ${journal.name}`}
                                       >
                                         <span>{journal.icon_emoji || '📚'}</span>
-                                        <span className="max-w-[100px] truncate">{journal.name}</span>
+                                        <span className="max-w-[100px] truncate font-medium">{journal.name}</span>
                                       </span>
                                     ))}
                                   </div>
                                 )}
-                                {/* Collections */}
+                                {/* Collections (with parent journal shown) */}
                                 {hasCollections && (
                                   <div className="flex flex-wrap gap-1">
                                     {assignments.collections.map(collection => (
                                       <span 
                                         key={collection.id}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded text-xs"
                                         title={`Collection: ${collection.name} (in ${collection.journal?.name || 'Unknown Journal'})`}
                                       >
+                                        <span className="text-gray-400">{collection.journal?.icon_emoji || '📚'}</span>
+                                        <span className="text-gray-400 max-w-[60px] truncate">{collection.journal?.name || '?'}</span>
+                                        <span className="text-gray-300">/</span>
                                         <span>{collection.icon_emoji || '📁'}</span>
-                                        <span className="max-w-[100px] truncate">{collection.name}</span>
+                                        <span className="max-w-[80px] truncate font-medium">{collection.name}</span>
                                       </span>
                                     ))}
                                   </div>
