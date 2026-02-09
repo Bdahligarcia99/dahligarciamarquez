@@ -69,6 +69,7 @@ const PostsPage = () => {
   const [assignmentJournal, setAssignmentJournal] = useState(null) // Selected journal for assignment
   const [assignmentCollection, setAssignmentCollection] = useState(null) // Selected collection for assignment
   const [assignmentCollections, setAssignmentCollections] = useState([]) // Collections for selected assignment journal
+  const [isDraggingOverQueue, setIsDraggingOverQueue] = useState(false) // Track drag over assignment queue
   
   // Post organization assignments (for entries table display)
   const [postAssignments, setPostAssignments] = useState({}) // { postId: { journals: [...], collections: [...] } }
@@ -983,11 +984,25 @@ const PostsPage = () => {
                       return (
                         <div
                           key={post.id}
+                          draggable={selectionMode}
+                          onDragStart={(e) => {
+                            if (!selectionMode) return
+                            // Store the post ID being dragged
+                            e.dataTransfer.setData('text/plain', post.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                            // If the dragged entry isn't selected, select it
+                            if (!isSelected) {
+                              setSelectedUnassignedEntries(prev => [...prev, post.id])
+                            }
+                          }}
+                          onDragEnd={() => {
+                            setIsDraggingOverQueue(false)
+                          }}
                           className={`flex flex-col items-center justify-center w-28 h-28 rounded-lg border-2 relative group cursor-pointer transition-colors ${
                             isSelected
                               ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200'
                               : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:bg-gray-100'
-                          }`}
+                          } ${selectionMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
                           onClick={() => {
                             if (selectionMode) {
                               // Selection mode: toggle select/deselect
@@ -1003,7 +1018,7 @@ const PostsPage = () => {
                               setShowAttributesView(false)
                             }
                           }}
-                          title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}${selectionMode ? (isSelected ? '\n\nClick to deselect' : '\n\nClick to select') : ''}`}
+                          title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}${selectionMode ? (isSelected ? '\n\nClick to deselect or drag to queue' : '\n\nClick to select or drag to queue') : ''}`}
                         >
                           {/* Selection indicator (only in selection mode) */}
                           {selectionMode && (
@@ -1054,9 +1069,53 @@ const PostsPage = () => {
 
           {/* ASSIGNMENT ROW - Staging area for batch assignment */}
           {(selectionMode || assignmentRowEntries.length > 0) && (
-            <div className={`bg-white rounded-lg shadow-sm border-2 p-6 transition-colors ${
-              assignmentRowEntries.length > 0 ? 'border-blue-200' : 'border-dashed border-blue-300 bg-blue-50/30'
-            }`}>
+            <div 
+              className={`bg-white rounded-lg shadow-sm border-2 p-6 transition-all ${
+                isDraggingOverQueue 
+                  ? 'border-blue-500 bg-blue-100 ring-4 ring-blue-200 scale-[1.01]' 
+                  : assignmentRowEntries.length > 0 
+                    ? 'border-blue-200' 
+                    : 'border-dashed border-blue-300 bg-blue-50/30'
+              }`}
+              onDragOver={(e) => {
+                if (!selectionMode) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }}
+              onDragEnter={(e) => {
+                if (!selectionMode) return
+                e.preventDefault()
+                setIsDraggingOverQueue(true)
+              }}
+              onDragLeave={(e) => {
+                // Only set to false if we're leaving the container entirely
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setIsDraggingOverQueue(false)
+                }
+              }}
+              onDrop={(e) => {
+                if (!selectionMode) return
+                e.preventDefault()
+                setIsDraggingOverQueue(false)
+                
+                const draggedPostId = e.dataTransfer.getData('text/plain')
+                
+                // Get all selected entries (including the dragged one if it wasn't selected)
+                const idsToMove = selectedUnassignedEntries.includes(draggedPostId)
+                  ? selectedUnassignedEntries
+                  : [...selectedUnassignedEntries, draggedPostId]
+                
+                // Move selected entries to assignment row
+                const entriesToMove = posts.filter(p => idsToMove.includes(p.id))
+                setAssignmentRowEntries(prev => {
+                  // Avoid duplicates
+                  const existingIds = new Set(prev.map(e => e.id))
+                  const newEntries = entriesToMove.filter(e => !existingIds.has(e.id))
+                  return [...prev, ...newEntries]
+                })
+                setSelectedUnassignedEntries([])
+              }}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1091,12 +1150,21 @@ const PostsPage = () => {
               
               {/* Empty state when in selection mode */}
               {assignmentRowEntries.length === 0 && (
-                <div className="py-6 text-center">
-                  <svg className="w-10 h-10 mx-auto mb-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={`py-6 text-center transition-all ${isDraggingOverQueue ? 'scale-105' : ''}`}>
+                  <svg className={`w-10 h-10 mx-auto mb-2 transition-colors ${isDraggingOverQueue ? 'text-blue-500' : 'text-blue-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
-                  <p className="text-sm text-blue-500 font-medium">Select entries above, then click "Move"</p>
-                  <p className="text-xs text-blue-400 mt-1">Selected entries will appear here for batch assignment</p>
+                  {isDraggingOverQueue ? (
+                    <>
+                      <p className="text-sm text-blue-600 font-medium">Drop here!</p>
+                      <p className="text-xs text-blue-500 mt-1">Release to add entries to the queue</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-blue-500 font-medium">Drag entries here or select &amp; click "Move"</p>
+                      <p className="text-xs text-blue-400 mt-1">Selected entries will appear here for batch assignment</p>
+                    </>
+                  )}
                 </div>
               )}
               
