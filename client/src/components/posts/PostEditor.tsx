@@ -8,6 +8,7 @@ import { uploadImage, UploadError } from '../../utils/uploadImage'
 import { validateImageUrl, extractImageUrlsFromHtml } from '../../utils/imageValidation'
 import { generateCoverImageAlt } from '../../utils/altTextGenerator'
 import { parseImportContent, getFieldsSummary, ImportMode, ParsedEntryFields } from '../../utils/importParser'
+import { generateTemplate, TemplateFormat, getFieldDescriptions } from '../../utils/templateGenerator'
 import { getSupabaseClient } from '../../lib/supabase'
 import ImageManagementPanel from '../editor/ImageManagementPanel'
 import CompressionControls from '../editor/CompressionControls'
@@ -129,6 +130,12 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const [importOverwrite, setImportOverwrite] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importPreview, setImportPreview] = useState<{ fields: ParsedEntryFields; summary: string[] } | null>(null)
+  
+  // Export Template modal states
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [templateFormat, setTemplateFormat] = useState<TemplateFormat>('json')
+  const [templateContent, setTemplateContent] = useState('')
+  const [templateCopied, setTemplateCopied] = useState(false)
   
   // Get compression settings
   const { settings: compressionSettings, isCompressionEnabled } = useCompressionSettingsStatic()
@@ -1115,6 +1122,38 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     handleImportClose()
   }
 
+  // Export Template modal handlers
+  const handleTemplateOpen = () => {
+    setShowTemplateModal(true)
+    setTemplateFormat('json')
+    const result = generateTemplate('json')
+    setTemplateContent(result.content)
+    setTemplateCopied(false)
+  }
+
+  const handleTemplateClose = () => {
+    setShowTemplateModal(false)
+    setTemplateContent('')
+    setTemplateCopied(false)
+  }
+
+  const handleTemplateFormatChange = (format: TemplateFormat) => {
+    setTemplateFormat(format)
+    const result = generateTemplate(format)
+    setTemplateContent(result.content)
+    setTemplateCopied(false)
+  }
+
+  const handleTemplateCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(templateContent)
+      setTemplateCopied(true)
+      setTimeout(() => setTemplateCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy template:', error)
+    }
+  }
+
   useEffect(() => {
     fetchLabels()
     fetchCuratorData()
@@ -1173,6 +1212,18 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
             Import
+          </button>
+          {/* Export Template Button */}
+          <button
+            type="button"
+            onClick={handleTemplateOpen}
+            className="px-3 py-2 text-sm font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+            title="Export a template for creating entries"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Template
           </button>
           {/* View Curator Button */}
           <button
@@ -2027,6 +2078,147 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Apply Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Export Template</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Copy this template to create entries externally</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleTemplateClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-4 flex-1 overflow-y-auto">
+              {/* Format selector */}
+              <div className="flex items-center gap-4 mb-4">
+                <label className="text-sm font-medium text-gray-700">Format:</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTemplateFormatChange('json')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      templateFormat === 'json'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTemplateFormatChange('html')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      templateFormat === 'html'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    HTML
+                  </button>
+                </div>
+              </div>
+
+              {/* Copy button */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-600">Template content:</span>
+                <button
+                  type="button"
+                  onClick={handleTemplateCopy}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                    templateCopied
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {templateCopied ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy to Clipboard
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Template textarea (read-only) */}
+              <textarea
+                value={templateContent}
+                readOnly
+                className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {/* Hint line */}
+              <p className="mt-3 text-sm text-gray-500 italic">
+                This template matches the current Entry Editor fields. Use it with the Import feature to create new entries.
+              </p>
+
+              {/* Field descriptions */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs font-medium text-blue-800 mb-2">Supported Fields:</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  {getFieldDescriptions().map((field) => (
+                    <div key={field.field} className="flex items-start gap-1 text-xs">
+                      <span className="font-mono text-blue-700">{field.field}</span>
+                      <span className="text-gray-500">
+                        ({field.type}){field.required && <span className="text-red-500">*</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format-specific notes */}
+              <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                {templateFormat === 'json' ? (
+                  <p className="text-xs text-gray-600">
+                    <strong>JSON Note:</strong> The <code className="bg-gray-200 px-1 rounded">__meta</code> section 
+                    is for documentation only and will be ignored during import. Fill in the actual field values 
+                    and use the Import feature to load your entry.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-600">
+                    <strong>HTML Note:</strong> Fields are marked with <code className="bg-gray-200 px-1 rounded">data-entry-field</code> attributes 
+                    and HTML comments for easy identification. The importer extracts the first &lt;h1&gt; as title, 
+                    first &lt;img&gt; as cover, and remaining content as body.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+              <button
+                type="button"
+                onClick={handleTemplateClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
