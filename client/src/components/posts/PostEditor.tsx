@@ -1674,6 +1674,10 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         </div>
 
         {/* Curator Organization (Journals & Collections) */}
+        {/* Debug: log current state */}
+        {console.log('📚 RENDER - availableJournals:', availableJournals.length, availableJournals)}
+        {console.log('📚 RENDER - availableCollections:', availableCollections.length, availableCollections)}
+        {console.log('📚 RENDER - curatorLoading:', curatorLoading)}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-gray-700">
