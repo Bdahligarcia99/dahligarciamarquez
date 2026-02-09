@@ -61,7 +61,14 @@ const PostsPage = () => {
   const [showEntryActionModal, setShowEntryActionModal] = useState(false)
   const [showAttributesView, setShowAttributesView] = useState(false)
   const [selectedPostsToAdd, setSelectedPostsToAdd] = useState([]) // For add entry modal
-  const [selectedUnassignedEntry, setSelectedUnassignedEntry] = useState(null) // For single-click selection in unassigned
+  
+  // Unassigned entries selection & assignment row
+  const [selectionMode, setSelectionMode] = useState(false) // Toggle selection mode
+  const [selectedUnassignedEntries, setSelectedUnassignedEntries] = useState([]) // Multi-select (array of post IDs)
+  const [assignmentRowEntries, setAssignmentRowEntries] = useState([]) // Entries staged for assignment
+  const [assignmentJournal, setAssignmentJournal] = useState(null) // Selected journal for assignment
+  const [assignmentCollection, setAssignmentCollection] = useState(null) // Selected collection for assignment
+  const [assignmentCollections, setAssignmentCollections] = useState([]) // Collections for selected assignment journal
   
   // Post organization assignments (for entries table display)
   const [postAssignments, setPostAssignments] = useState({}) // { postId: { journals: [...], collections: [...] } }
@@ -870,28 +877,80 @@ const PostsPage = () => {
           
           {/* UNASSIGNED ENTRIES - Shows actual posts from database */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <button
-              onClick={() => setShowUnassigned(!showUnassigned)}
-              className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
+            <div className="px-6 py-4 flex items-center justify-between">
+              <button
+                onClick={() => setShowUnassigned(!showUnassigned)}
+                className="flex items-center gap-2 hover:bg-gray-50 transition-colors rounded px-2 py-1 -ml-2"
+              >
                 <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <span className="font-medium text-gray-700">Unassigned Entries</span>
                 <span className="text-sm text-gray-400">
-                  ({loading ? '...' : posts.length})
+                  ({loading ? '...' : posts.filter(p => !assignmentRowEntries.some(e => e.id === p.id)).length})
                 </span>
-              </div>
-              <svg 
-                className={`w-5 h-5 text-gray-400 transition-transform ${showUnassigned ? 'rotate-180' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+                <svg 
+                  className={`w-5 h-5 text-gray-400 transition-transform ${showUnassigned ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {/* Selection mode controls */}
+              {showUnassigned && posts.filter(p => !assignmentRowEntries.some(e => e.id === p.id)).length > 0 && (
+                <div className="flex items-center gap-2">
+                  {selectionMode && selectedUnassignedEntries.length > 0 && (
+                    <button
+                      onClick={() => {
+                        // Move selected entries to assignment row
+                        const entriesToMove = posts.filter(p => selectedUnassignedEntries.includes(p.id))
+                        setAssignmentRowEntries(prev => [...prev, ...entriesToMove])
+                        setSelectedUnassignedEntries([])
+                        setSelectionMode(false)
+                      }}
+                      className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                      Move ({selectedUnassignedEntries.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectionMode(!selectionMode)
+                      if (selectionMode) {
+                        setSelectedUnassignedEntries([])
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                      selectionMode
+                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {selectionMode ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        Select
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
             
             {showUnassigned && (
               <div className="px-6 pb-6 border-t border-gray-100">
@@ -917,8 +976,10 @@ const PostsPage = () => {
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-4 pt-4">
-                    {posts.map((post) => {
-                      const isSelected = selectedUnassignedEntry === post.id
+                    {posts
+                      .filter(p => !assignmentRowEntries.some(e => e.id === p.id)) // Filter out entries in assignment row
+                      .map((post) => {
+                      const isSelected = selectedUnassignedEntries.includes(post.id)
                       return (
                         <div
                           key={post.id}
@@ -928,24 +989,32 @@ const PostsPage = () => {
                               : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:bg-gray-100'
                           }`}
                           onClick={() => {
-                            if (isSelected) {
-                              // Second click - open the UI
+                            if (selectionMode) {
+                              // Selection mode: toggle select/deselect
+                              if (isSelected) {
+                                setSelectedUnassignedEntries(prev => prev.filter(id => id !== post.id))
+                              } else {
+                                setSelectedUnassignedEntries(prev => [...prev, post.id])
+                              }
+                            } else {
+                              // Normal mode: open the UI modal
                               setSelectedEntryForAction(post)
                               setShowEntryActionModal(true)
                               setShowAttributesView(false)
-                            } else {
-                              // First click - select the entry
-                              setSelectedUnassignedEntry(post.id)
                             }
                           }}
-                          title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}${isSelected ? '\n\nClick again to open options' : ''}`}
+                          title={`${post.title}\nStatus: ${post.status || 'draft'}\nCreated: ${new Date(post.created_at).toLocaleDateString()}${selectionMode ? (isSelected ? '\n\nClick to deselect' : '\n\nClick to select') : ''}`}
                         >
-                          {/* Selection indicator */}
-                          {isSelected && (
-                            <div className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                          {/* Selection indicator (only in selection mode) */}
+                          {selectionMode && (
+                            <div className={`absolute top-1.5 left-1.5 w-4 h-4 rounded-full flex items-center justify-center ${
+                              isSelected ? 'bg-blue-500 text-white' : 'bg-white border-2 border-gray-300'
+                            }`}>
+                              {isSelected && (
+                                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
                             </div>
                           )}
                           
@@ -982,6 +1051,217 @@ const PostsPage = () => {
               </div>
             )}
           </div>
+
+          {/* ASSIGNMENT ROW - Staging area for batch assignment */}
+          {assignmentRowEntries.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border-2 border-blue-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                  </svg>
+                  <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wider">
+                    Assignment Queue
+                  </h3>
+                  <span className="text-sm text-blue-400">
+                    ({assignmentRowEntries.length} {assignmentRowEntries.length === 1 ? 'entry' : 'entries'})
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setAssignmentRowEntries([])
+                    setAssignmentJournal(null)
+                    setAssignmentCollection(null)
+                    setAssignmentCollections([])
+                  }}
+                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Clear All
+                </button>
+              </div>
+              
+              {/* Entries in assignment queue */}
+              <div className="flex flex-wrap gap-3 mb-6">
+                {assignmentRowEntries.map((post) => (
+                  <div
+                    key={post.id}
+                    className="flex flex-col items-center justify-center w-24 h-24 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-700 relative group"
+                  >
+                    {/* Hover X to remove */}
+                    <button
+                      onClick={() => {
+                        setAssignmentRowEntries(prev => prev.filter(e => e.id !== post.id))
+                      }}
+                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-sm hover:bg-red-600"
+                      title="Move back to Unassigned"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    
+                    {/* Status indicator */}
+                    <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                      post.status === 'published' ? 'bg-green-500' :
+                      post.status === 'private' ? 'bg-purple-500' :
+                      post.status === 'system' ? 'bg-blue-500' :
+                      post.status === 'archived' ? 'bg-gray-400' :
+                      'bg-yellow-500'
+                    }`} />
+                    
+                    {/* Cover image or icon */}
+                    {post.cover_image_url ? (
+                      <img 
+                        src={post.cover_image_url} 
+                        alt=""
+                        className="w-8 h-8 object-cover rounded mb-1"
+                      />
+                    ) : (
+                      <svg className="w-6 h-6 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    )}
+                    
+                    <span className="text-xs font-medium text-center px-1 truncate w-full">
+                      {post.title || 'Untitled'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Assignment controls */}
+              <div className="border-t border-blue-100 pt-4">
+                <p className="text-sm text-gray-600 mb-3">Assign to:</p>
+                <div className="flex flex-wrap items-end gap-4">
+                  {/* Journal picker */}
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Journal</label>
+                    <select
+                      value={assignmentJournal || ''}
+                      onChange={async (e) => {
+                        const journalId = e.target.value || null
+                        setAssignmentJournal(journalId)
+                        setAssignmentCollection(null)
+                        
+                        if (journalId) {
+                          // Fetch collections for this journal
+                          const supabase = getSupabaseClient()
+                          const { data, error } = await supabase.rpc('get_journal_collections', { journal_uuid: journalId })
+                          if (!error && data) {
+                            setAssignmentCollections(data)
+                          } else {
+                            setAssignmentCollections([])
+                          }
+                        } else {
+                          setAssignmentCollections([])
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select a journal...</option>
+                      {journals.map(journal => (
+                        <option key={journal.id} value={journal.id}>
+                          {journal.icon_emoji || '📚'} {journal.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Collection picker (only if journal selected) */}
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Collection (optional)</label>
+                    <select
+                      value={assignmentCollection || ''}
+                      onChange={(e) => setAssignmentCollection(e.target.value || null)}
+                      disabled={!assignmentJournal}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">No collection</option>
+                      {assignmentCollections.map(collection => (
+                        <option key={collection.id} value={collection.id}>
+                          {collection.icon_emoji || '📁'} {collection.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Apply button */}
+                  <button
+                    onClick={async () => {
+                      if (!assignmentJournal) {
+                        alert('Please select a journal')
+                        return
+                      }
+                      
+                      const supabase = getSupabaseClient()
+                      let successCount = 0
+                      let errorCount = 0
+                      
+                      for (const entry of assignmentRowEntries) {
+                        try {
+                          // Add to journal
+                          const { error: journalError } = await supabase.rpc('add_post_to_journal', {
+                            post_uuid: entry.id,
+                            journal_uuid: assignmentJournal,
+                            position_val: 0
+                          })
+                          
+                          if (journalError) {
+                            console.error('Error adding to journal:', journalError)
+                            errorCount++
+                            continue
+                          }
+                          
+                          // Add to collection if selected
+                          if (assignmentCollection) {
+                            const { error: collectionError } = await supabase.rpc('add_post_to_collection', {
+                              post_uuid: entry.id,
+                              collection_uuid: assignmentCollection,
+                              position_val: 0
+                            })
+                            
+                            if (collectionError) {
+                              console.error('Error adding to collection:', collectionError)
+                              // Still count as partial success since journal worked
+                            }
+                          }
+                          
+                          successCount++
+                        } catch (err) {
+                          console.error('Error assigning entry:', err)
+                          errorCount++
+                        }
+                      }
+                      
+                      // Clear assignment row and refresh
+                      setAssignmentRowEntries([])
+                      setAssignmentJournal(null)
+                      setAssignmentCollection(null)
+                      setAssignmentCollections([])
+                      
+                      // Refresh posts to update the unassigned list
+                      fetchPosts()
+                      fetchCuratorData()
+                      
+                      if (errorCount > 0) {
+                        alert(`Assigned ${successCount} entries. ${errorCount} failed.`)
+                      }
+                    }}
+                    disabled={!assignmentJournal}
+                    className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Apply to All
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* JOURNALS ROW */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -2053,7 +2333,6 @@ const PostsPage = () => {
                         setShowEntryActionModal(false)
                         setSelectedEntryForAction(null)
                         setShowAttributesView(false)
-                        setSelectedUnassignedEntry(null)
                       }}
                       className="w-full mt-4 px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
                     >
