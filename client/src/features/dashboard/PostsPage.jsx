@@ -743,12 +743,22 @@ const PostsPage = () => {
                               )
                             }
                             
+                            // Get journal IDs that are already represented via collections
+                            const journalIdsInCollections = new Set(
+                              assignments.collections.map(c => c.journal?.id).filter(Boolean)
+                            )
+                            
+                            // Filter journals to only show those NOT already represented by a collection
+                            const standaloneJournals = assignments.journals.filter(
+                              j => !journalIdsInCollections.has(j.id)
+                            )
+                            
                             return (
                               <div className="flex flex-col gap-1.5">
-                                {/* Journals (direct assignments) */}
-                                {hasJournals && (
+                                {/* Journals (only those without collections in this post) */}
+                                {standaloneJournals.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
-                                    {assignments.journals.map(journal => (
+                                    {standaloneJournals.map(journal => (
                                       <span 
                                         key={journal.id}
                                         className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs"
