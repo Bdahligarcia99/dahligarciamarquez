@@ -933,7 +933,7 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     })
   }
 
-  const handleImportApply = () => {
+  const handleImportApply = async () => {
     if (!importPreview?.fields) return
     
     const fields = importPreview.fields
@@ -964,9 +964,16 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       setStatus(fields.status)
     }
     
-    // Match imported journal names against available journals (case-insensitive)
+    const supabase = getSupabaseClient()
+    const { data: userData } = await supabase.auth.getUser()
+    const newJournalIds: string[] = []
+    const newCollectionIds: string[] = []
+    
+    // Process journals - match existing or create new
     if (fields.journals && fields.journals.length > 0) {
       const matchedJournalIds: string[] = []
+      const journalsToCreate: string[] = []
+      
       for (const importedName of fields.journals) {
         const normalizedImport = importedName.toLowerCase().trim()
         const match = availableJournals.find(j => 
@@ -975,16 +982,53 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         )
         if (match) {
           matchedJournalIds.push(match.journal_id)
+        } else {
+          journalsToCreate.push(importedName.trim())
         }
       }
-      if (matchedJournalIds.length > 0) {
-        setSelectedJournals(prev => [...new Set([...prev, ...matchedJournalIds])])
+      
+      // Create new journals
+      if (journalsToCreate.length > 0 && userData?.user) {
+        for (const journalName of journalsToCreate) {
+          try {
+            const { data, error } = await supabase
+              .from('journals')
+              .insert({
+                name: journalName,
+                icon_emoji: '📚',
+                icon_type: 'emoji',
+                owner_id: userData.user.id,
+                status: 'draft'
+              })
+              .select()
+              .single()
+            
+            if (!error && data?.id) {
+              newJournalIds.push(data.id)
+            }
+          } catch (err) {
+            console.error('Error creating journal:', journalName, err)
+          }
+        }
+      }
+      
+      // Select all matched + newly created journals
+      const allJournalIds = [...matchedJournalIds, ...newJournalIds]
+      if (allJournalIds.length > 0) {
+        setSelectedJournals(prev => [...new Set([...prev, ...allJournalIds])])
       }
     }
     
-    // Match imported collection names against available collections (case-insensitive)
+    // Refresh journals if we created new ones (needed for collection creation)
+    if (newJournalIds.length > 0) {
+      await fetchCuratorData()
+    }
+    
+    // Process collections - match existing or create new
     if (fields.collections && fields.collections.length > 0) {
       const matchedCollectionIds: string[] = []
+      const collectionsToCreate: string[] = []
+      
       for (const importedName of fields.collections) {
         const normalizedImport = importedName.toLowerCase().trim()
         const match = availableCollections.find(c => 
@@ -993,15 +1037,80 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         )
         if (match) {
           matchedCollectionIds.push(match.collection_id)
+        } else {
+          collectionsToCreate.push(importedName.trim())
         }
       }
-      if (matchedCollectionIds.length > 0) {
-        setSelectedCollections(prev => [...new Set([...prev, ...matchedCollectionIds])])
+      
+      // Create new collections - need a journal to put them in
+      if (collectionsToCreate.length > 0) {
+        // Use first selected/created journal, or first available journal
+        let targetJournalId = newJournalIds[0] || selectedJournals[0]
+        
+        // If still no journal, get the first available one
+        if (!targetJournalId && availableJournals.length > 0) {
+          targetJournalId = availableJournals[0].journal_id
+        }
+        
+        // If we have a newly created journal that's not in availableJournals yet, fetch fresh data
+        if (!targetJournalId && newJournalIds.length > 0) {
+          const freshJournals = await supabase.rpc('get_all_journals_for_picker')
+          if (freshJournals.data && freshJournals.data.length > 0) {
+            targetJournalId = freshJournals.data[0].journal_id
+          }
+        }
+        
+        if (targetJournalId) {
+          for (const collectionName of collectionsToCreate) {
+            try {
+              const { data, error } = await supabase
+                .from('collections')
+                .insert({
+                  name: collectionName,
+                  icon_emoji: '📁',
+                  journal_id: targetJournalId,
+                  status: 'draft'
+                })
+                .select()
+                .single()
+              
+              if (!error && data?.id) {
+                newCollectionIds.push(data.id)
+              }
+            } catch (err) {
+              console.error('Error creating collection:', collectionName, err)
+            }
+          }
+        }
+      }
+      
+      // Select all matched + newly created collections
+      const allCollectionIds = [...matchedCollectionIds, ...newCollectionIds]
+      if (allCollectionIds.length > 0) {
+        setSelectedCollections(prev => [...new Set([...prev, ...allCollectionIds])])
       }
     }
     
-    setSuccessMessage('Content imported successfully!')
-    setTimeout(() => setSuccessMessage(null), 3000)
+    // Refresh curator data if we created anything new
+    if (newJournalIds.length > 0 || newCollectionIds.length > 0) {
+      await fetchCuratorData()
+    }
+    
+    // Build success message
+    const createdItems: string[] = []
+    if (newJournalIds.length > 0) {
+      createdItems.push(`${newJournalIds.length} journal${newJournalIds.length > 1 ? 's' : ''}`)
+    }
+    if (newCollectionIds.length > 0) {
+      createdItems.push(`${newCollectionIds.length} collection${newCollectionIds.length > 1 ? 's' : ''}`)
+    }
+    
+    const successMsg = createdItems.length > 0 
+      ? `Content imported! Created ${createdItems.join(' and ')}.`
+      : 'Content imported successfully!'
+    
+    setSuccessMessage(successMsg)
+    setTimeout(() => setSuccessMessage(null), 4000)
     
     handleImportClose()
   }
@@ -1896,8 +2005,8 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                   <strong>HTML extraction:</strong> First &lt;h1&gt; → title, first &lt;img&gt; → cover image, 
                   first &lt;p&gt; → excerpt (if short), remaining → content
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  <em>Note: Journal/Collection names are matched against existing items (case-insensitive).</em>
+                <p className="text-xs text-green-700 mt-1">
+                  <strong>Auto-create:</strong> Non-existing journals/collections will be created automatically.
                 </p>
               </div>
             </div>
