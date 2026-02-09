@@ -347,11 +347,23 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       
       if (error) throw error
       
-      // Refresh the journals list
-      await fetchCuratorData()
-      
-      // Auto-select the new journal
-      if (data?.id) {
+      // Immediately add the new journal to the UI (optimistic update)
+      // This ensures it appears even if the RPC fetch has issues
+      if (data) {
+        const newJournal: JournalForPicker = {
+          journal_id: data.id,
+          journal_name: data.name,
+          journal_slug: data.slug || '',
+          journal_icon_emoji: data.icon_emoji || '📚',
+          journal_icon_type: data.icon_type || 'emoji',
+          journal_icon_image_url: data.icon_image_url || null,
+          journal_status: data.status || 'draft',
+          entry_count: 0,
+          collection_count: 0
+        }
+        setAvailableJournals(prev => [...prev, newJournal])
+        
+        // Auto-select the new journal
         setSelectedJournals(prev => [...prev, data.id])
         
         // If editing existing post, add to journal immediately
@@ -362,6 +374,9 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           })
         }
       }
+      
+      // Also refresh from server to get accurate counts
+      fetchCuratorData()
       
       // Reset form
       setNewJournalName('')
@@ -400,11 +415,26 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       
       if (error) throw error
       
-      // Refresh the collections list
-      await fetchCuratorData()
-      
-      // Auto-select the new collection
-      if (data?.id) {
+      // Immediately add the new collection to the UI (optimistic update)
+      // Find the parent journal for display info
+      if (data) {
+        const parentJournal = availableJournals.find(j => j.journal_id === newCollectionJournalId)
+        const newCollection: CollectionForPicker = {
+          collection_id: data.id,
+          collection_name: data.name,
+          collection_slug: data.slug || '',
+          collection_icon_emoji: data.icon_emoji || '📁',
+          collection_status: data.status || 'draft',
+          journal_id: newCollectionJournalId,
+          journal_name: parentJournal?.journal_name || '',
+          journal_icon_emoji: parentJournal?.journal_icon_emoji || '📚',
+          journal_icon_type: parentJournal?.journal_icon_type || 'emoji',
+          journal_status: parentJournal?.journal_status || 'draft',
+          entry_count: 0
+        }
+        setAvailableCollections(prev => [...prev, newCollection])
+        
+        // Auto-select the new collection
         setSelectedCollections(prev => [...prev, data.id])
         
         // If editing existing post, add to collection immediately
@@ -415,6 +445,9 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
           })
         }
       }
+      
+      // Also refresh from server to get accurate counts
+      fetchCuratorData()
       
       // Reset form
       setNewCollectionName('')
