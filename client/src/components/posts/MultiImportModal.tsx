@@ -48,6 +48,10 @@ interface SaveResult {
   error?: string
 }
 
+// Constants
+const MAX_DRAFTS = 10
+const NEAR_CAPACITY_THRESHOLD = 8
+
 export default function MultiImportModal({
   isOpen,
   onClose,
@@ -82,6 +86,13 @@ export default function MultiImportModal({
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number } | null>(null)
   const [saveResults, setSaveResults] = useState<SaveResult[]>([])
   
+  // Draft Registry management state
+  const [showRegistryModal, setShowRegistryModal] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [clearOnCancel, setClearOnCancel] = useState(false)
+  const [sessionDraftIds, setSessionDraftIds] = useState<Set<string>>(new Set())
+  const [clearMessage, setClearMessage] = useState<string | null>(null)
+  
   // Get drafts from registry
   const importedDrafts = importedDraftIds
     .map(id => draftRegistry.getDraft(id))
@@ -89,6 +100,27 @@ export default function MultiImportModal({
   
   // Track if we should auto-parse on next render
   const [shouldAutoParse, setShouldAutoParse] = useState(false)
+  
+  // Registry status helpers
+  const registryCount = draftRegistry.draftCount
+  const isRegistryEmpty = registryCount === 0
+  const isNearCapacity = registryCount >= NEAR_CAPACITY_THRESHOLD
+  const isFull = registryCount >= MAX_DRAFTS
+  const availableSlots = MAX_DRAFTS - registryCount
+  
+  // Handle modal close with optional auto-clear
+  const handleClose = useCallback(() => {
+    if (clearOnCancel && sessionDraftIds.size > 0) {
+      // Clear only drafts created in this session
+      console.log(`[MultiImport] Auto-clearing ${sessionDraftIds.size} session drafts`)
+      for (const draftId of sessionDraftIds) {
+        draftRegistry.removeDraft(draftId)
+      }
+      setClearMessage(`Cleared ${sessionDraftIds.size} draft(s) from this session`)
+      setTimeout(() => setClearMessage(null), 3000)
+    }
+    onClose()
+  }, [clearOnCancel, sessionDraftIds, draftRegistry, onClose])
   
   // Reset state when modal closes
   useEffect(() => {
@@ -105,6 +137,11 @@ export default function MultiImportModal({
       setSaveProgress(null)
       setSaveResults([])
       setShouldAutoParse(false)
+      setShowRegistryModal(false)
+      setShowClearConfirm(false)
+      // Reset session tracking when modal reopens
+      setSessionDraftIds(new Set())
+      // Don't reset clearOnCancel - let user preference persist
     }
   }, [isOpen])
   
@@ -197,6 +234,8 @@ export default function MultiImportModal({
         
         if (draftId) {
           newDraftIds.push(draftId)
+          // Track this as a session draft for potential auto-clear on cancel
+          setSessionDraftIds(prev => new Set([...prev, draftId]))
         } else {
           // createDraft returned null - likely hit MAX_DRAFTS
           failedEntries.push({ index: i, title: entryTitle, reason: 'Draft limit reached' })
@@ -274,6 +313,54 @@ export default function MultiImportModal({
         return match?.collection_id
       })
       .filter((id): id is string => !!id)
+  }
+  
+  // ============================================================
+  // REGISTRY MANAGEMENT
+  // ============================================================
+  
+  // Clear entire registry (with confirmation)
+  const handleClearRegistry = useCallback(() => {
+    const count = draftRegistry.draftCount
+    console.log(`[MultiImport] Clearing all ${count} drafts from registry`)
+    draftRegistry.discardAllDrafts()
+    setShowClearConfirm(false)
+    setShowRegistryModal(false)
+    setClearMessage(`Cleared ${count} draft(s) from registry`)
+    setTimeout(() => setClearMessage(null), 3000)
+    // Also clear our session tracking since those drafts are gone
+    setSessionDraftIds(new Set())
+    setImportedDraftIds([])
+  }, [draftRegistry])
+  
+  // Remove a single draft from registry
+  const handleRemoveDraft = useCallback((draftId: string) => {
+    const draft = draftRegistry.getDraft(draftId)
+    const title = draft?.title || 'Untitled'
+    draftRegistry.removeDraft(draftId)
+    // Update session tracking
+    setSessionDraftIds(prev => {
+      const next = new Set(prev)
+      next.delete(draftId)
+      return next
+    })
+    // Update imported drafts list
+    setImportedDraftIds(prev => prev.filter(id => id !== draftId))
+    setClearMessage(`Removed "${title}" from registry`)
+    setTimeout(() => setClearMessage(null), 2000)
+  }, [draftRegistry])
+  
+  // Get registry drafts for display
+  const allRegistryDrafts = draftRegistry.drafts
+  
+  // Format time ago
+  const formatTimeAgo = (timestamp: number): string => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+    if (seconds < 60) return 'just now'
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    return `${hours}h ago`
   }
   
   // Toggle draft selection
@@ -511,7 +598,7 @@ export default function MultiImportModal({
               </h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-400 hover:text-gray-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -564,7 +651,7 @@ export default function MultiImportModal({
                 {unsavedCount > 0 && ` · ${unsavedCount} unsaved`}
               </p>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -848,7 +935,7 @@ export default function MultiImportModal({
             
             <div className="flex gap-3">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Close
@@ -878,100 +965,313 @@ export default function MultiImportModal({
   // RENDER: INPUT VIEW (Paste)
   // ============================================================
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Import Entries</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Paste JSON or HTML content · Supports multiple entries
-            </p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        
-        {/* Body */}
-        <div className="px-6 py-4 flex-1 overflow-y-auto">
-          {/* Textarea */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Paste content
-            </label>
-            <textarea
-              value={importInput}
-              onChange={(e) => {
-                setImportInput(e.target.value)
-                setParseError(null)
-              }}
-              className="w-full h-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm resize-none"
-              placeholder='Paste JSON (single object, array, or { entries: [...] }) or HTML with delimiters'
-            />
-          </div>
-          
-          {/* Mode selector */}
-          <div className="flex items-center gap-4 mb-4">
-            <label className="text-sm font-medium text-gray-700">Format:</label>
-            <select
-              value={importMode}
-              onChange={(e) => setImportMode(e.target.value as ImportMode)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="auto">Auto-detect</option>
-              <option value="json">JSON</option>
-              <option value="html">HTML</option>
-            </select>
-          </div>
-          
-          {/* Error */}
-          {parseError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700">{parseError}</p>
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Import Entries</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Paste JSON or HTML content · Supports multiple entries
+              </p>
             </div>
-          )}
-          
-          {/* Warnings */}
-          {parseWarnings.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              {parseWarnings.map((w, i) => (
-                <p key={i} className="text-sm text-amber-700">{w}</p>
-              ))}
-            </div>
-          )}
-          
-          {/* Help text */}
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
-            <p className="text-xs text-blue-700 font-medium">Multi-entry formats supported:</p>
-            <p className="text-xs text-blue-700">
-              <strong>JSON:</strong> Array of objects [&#123;...&#125;, &#123;...&#125;] or wrapper &#123;"entries": [...]&#125;
-            </p>
-            <p className="text-xs text-blue-700">
-              <strong>HTML:</strong> Multiple &lt;article data-entry&gt;...&lt;/article&gt; blocks or &lt;!-- ENTRY_START --&gt; delimiters
-            </p>
+            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-        </div>
-        
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleParse}
-            disabled={!importInput.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Parse & Review
-          </button>
+          
+          {/* Body */}
+          <div className="px-6 py-4 flex-1 overflow-y-auto">
+            {/* Clear message toast */}
+            {clearMessage && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <p className="text-sm text-green-700">{clearMessage}</p>
+              </div>
+            )}
+            
+            {/* Registry Status Banner */}
+            {!isRegistryEmpty && (
+              <div className={`mb-4 p-3 rounded-lg border ${
+                isFull 
+                  ? 'bg-red-50 border-red-200' 
+                  : isNearCapacity 
+                    ? 'bg-amber-50 border-amber-200' 
+                    : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className={`w-4 h-4 ${
+                      isFull ? 'text-red-600' : isNearCapacity ? 'text-amber-600' : 'text-gray-500'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <span className={`text-sm font-medium ${
+                      isFull ? 'text-red-700' : isNearCapacity ? 'text-amber-700' : 'text-gray-700'
+                    }`}>
+                      Draft Registry: {registryCount}/{MAX_DRAFTS}
+                      {isFull && ' (Full)'}
+                      {isNearCapacity && !isFull && ' (Near capacity)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowRegistryModal(true)}
+                      className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200 transition-colors"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+                {isFull && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Cannot import new entries. Clear the registry or save existing drafts first.
+                  </p>
+                )}
+                {isNearCapacity && !isFull && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    Only {availableSlots} slot{availableSlots !== 1 ? 's' : ''} available. Consider clearing old drafts.
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {/* Textarea */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Paste content
+              </label>
+              <textarea
+                value={importInput}
+                onChange={(e) => {
+                  setImportInput(e.target.value)
+                  setParseError(null)
+                }}
+                className="w-full h-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm resize-none"
+                placeholder='Paste JSON (single object, array, or { entries: [...] }) or HTML with delimiters'
+              />
+            </div>
+            
+            {/* Mode selector */}
+            <div className="flex items-center gap-4 mb-4">
+              <label className="text-sm font-medium text-gray-700">Format:</label>
+              <select
+                value={importMode}
+                onChange={(e) => setImportMode(e.target.value as ImportMode)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="auto">Auto-detect</option>
+                <option value="json">JSON</option>
+                <option value="html">HTML</option>
+              </select>
+            </div>
+            
+            {/* Error */}
+            {parseError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{parseError}</p>
+              </div>
+            )}
+            
+            {/* Warnings */}
+            {parseWarnings.length > 0 && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                {parseWarnings.map((w, i) => (
+                  <p key={i} className="text-sm text-amber-700">{w}</p>
+                ))}
+              </div>
+            )}
+            
+            {/* Help text */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
+              <p className="text-xs text-blue-700 font-medium">Multi-entry formats supported:</p>
+              <p className="text-xs text-blue-700">
+                <strong>JSON:</strong> Array of objects [&#123;...&#125;, &#123;...&#125;] or wrapper &#123;"entries": [...]&#125;
+              </p>
+              <p className="text-xs text-blue-700">
+                <strong>HTML:</strong> Multiple &lt;article data-entry&gt;...&lt;/article&gt; blocks or &lt;!-- ENTRY_START --&gt; delimiters
+              </p>
+            </div>
+          </div>
+          
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+            {/* Auto-clear checkbox */}
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="checkbox"
+                id="clearOnCancel"
+                checked={clearOnCancel}
+                onChange={(e) => setClearOnCancel(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="clearOnCancel" className="text-xs text-gray-600">
+                Clear drafts from this session when I cancel
+                {sessionDraftIds.size > 0 && (
+                  <span className="text-gray-400 ml-1">({sessionDraftIds.size} draft{sessionDraftIds.size !== 1 ? 's' : ''})</span>
+                )}
+              </label>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={handleClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleParse}
+                disabled={!importInput.trim() || isFull}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Parse & Review
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+      
+      {/* View Registry Modal */}
+      {showRegistryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Draft Registry</h3>
+                <p className="text-sm text-gray-500">{registryCount} of {MAX_DRAFTS} drafts</p>
+              </div>
+              <button onClick={() => setShowRegistryModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              {allRegistryDrafts.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p>Registry is empty</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allRegistryDrafts.map(draft => (
+                    <div
+                      key={draft.draftId}
+                      className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium truncate ${draft.title ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                            {draft.title || 'Untitled'}
+                          </span>
+                          {/* Status badges */}
+                          {draft.postId && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
+                              Saved
+                            </span>
+                          )}
+                          {draft.isDirty && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">
+                              Unsaved
+                            </span>
+                          )}
+                          {sessionDraftIds.has(draft.draftId) && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                              This session
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Source: {draft.source} · Updated {formatTimeAgo(draft.updatedAt)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveDraft(draft.draftId)}
+                        className="flex-shrink-0 p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors"
+                        title="Remove draft"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                disabled={allRegistryDrafts.length === 0}
+                className="px-3 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setShowRegistryModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Clear Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Clear Draft Registry?</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              This will permanently remove <strong>{registryCount} draft{registryCount !== 1 ? 's' : ''}</strong> from the registry.
+              Unsaved changes will be lost.
+            </p>
+            
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Keep Drafts
+              </button>
+              <button
+                onClick={handleClearRegistry}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
