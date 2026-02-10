@@ -833,30 +833,56 @@ function splitHtmlByEntryDelimiters(html: string): { segments: string[]; hasDeli
  * Supports:
  * - Single object: { title: "..." }
  * - Array of objects: [{ title: "..." }, { title: "..." }]
- * - Wrapper object: { entries: [...] }
+ * - Wrapper object: { entries: [...] } or { items: [...] }
+ * - Template wrapper: { __meta: {...}, entries: [...] }
  */
-function extractJsonEntryArray(data: any): { items: any[]; isMultiple: boolean } {
+function extractJsonEntryArray(data: any): { items: any[]; isMultiple: boolean; isWrapper: boolean } {
   // Check if it's an array
   if (Array.isArray(data)) {
-    return { items: data, isMultiple: data.length > 1 }
+    return { items: data, isMultiple: data.length > 1, isWrapper: false }
   }
   
-  // Check if it has an entries wrapper
-  if (data && typeof data === 'object' && Array.isArray(data.entries)) {
-    return { items: data.entries, isMultiple: data.entries.length > 1 }
+  // Not an object - can't extract
+  if (!data || typeof data !== 'object') {
+    return { items: [], isMultiple: false, isWrapper: false }
+  }
+  
+  // Check if it has an entries wrapper (including template format with __meta)
+  if (Array.isArray(data.entries)) {
+    return { items: data.entries, isMultiple: data.entries.length > 1, isWrapper: true }
   }
   
   // Check for items wrapper (alternative)
-  if (data && typeof data === 'object' && Array.isArray(data.items)) {
-    return { items: data.items, isMultiple: data.items.length > 1 }
+  if (Array.isArray(data.items)) {
+    return { items: data.items, isMultiple: data.items.length > 1, isWrapper: true }
   }
   
-  // Single object
-  if (data && typeof data === 'object') {
-    return { items: [data], isMultiple: false }
+  // Check if this is a wrapper object that SHOULD have entries but doesn't
+  // (e.g., { __meta: {...} } without entries array - malformed template)
+  const hasMetaOnly = data.__meta && Object.keys(data).filter(k => k !== '__meta').length === 0
+  if (hasMetaOnly) {
+    console.warn('[importParser] Wrapper object detected with __meta but no entries array')
+    return { items: [], isMultiple: false, isWrapper: true }
   }
   
-  return { items: [], isMultiple: false }
+  // Check if object has __meta alongside other keys (partial template format)
+  if (data.__meta) {
+    // Extract non-meta content as potential single entry
+    const entryData = { ...data }
+    delete entryData.__meta
+    
+    // If after removing __meta, we have recognizable entry keys, treat as single entry
+    const hasEntryKeys = ['title', 'content', 'body', 'excerpt', 'coverImageUrl'].some(k => k in entryData)
+    if (hasEntryKeys && Object.keys(entryData).length > 0) {
+      return { items: [entryData], isMultiple: false, isWrapper: false }
+    }
+    
+    // Object only had __meta and unrecognized keys
+    return { items: [], isMultiple: false, isWrapper: true }
+  }
+  
+  // Single object (no wrapper)
+  return { items: [data], isMultiple: false, isWrapper: false }
 }
 
 /**
@@ -892,8 +918,13 @@ export function parseMultipleEntries(
     
     if (jsonResult.success) {
       detectedFormat = 'json'
-      const { items, isMultiple: jsonMultiple } = extractJsonEntryArray(jsonResult.data)
+      const { items, isMultiple: jsonMultiple, isWrapper } = extractJsonEntryArray(jsonResult.data)
       isMultiple = jsonMultiple
+      
+      // Check for empty wrapper (malformed template)
+      if (isWrapper && items.length === 0) {
+        warnings.push('JSON wrapper detected but no entries array found. Expected { entries: [...] }')
+      }
       
       // Parse each item
       for (const item of items) {
@@ -901,6 +932,10 @@ export function parseMultipleEntries(
           const mapResult = mapJsonToFields(item, overwrite, {})
           if (Object.keys(mapResult.fields).length > 0) {
             entries.push(mapResult.fields)
+          } else {
+            // Log which item had no mappable fields
+            const itemKeys = Object.keys(item).slice(0, 5).join(', ')
+            console.warn(`[importParser] Entry skipped - no mappable fields found. Keys: ${itemKeys}`)
           }
           
           // Collect warnings for first item only (to avoid noise)
@@ -913,7 +948,9 @@ export function parseMultipleEntries(
         }
       }
       
-      if (entries.length === 0) {
+      if (entries.length === 0 && items.length > 0) {
+        warnings.push(`Found ${items.length} items but none had recognizable entry fields (title, content, etc.)`)
+      } else if (entries.length === 0) {
         warnings.push('No valid entries found in JSON')
       }
     } else if (mode === 'json') {

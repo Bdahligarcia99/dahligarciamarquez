@@ -126,45 +126,114 @@ export default function MultiImportModal({
     setParseError(null)
     setParseWarnings([])
     
-    const result = parseMultipleEntries(importInput, importMode)
+    // Step 1: Parse the input content
+    let result
+    try {
+      result = parseMultipleEntries(importInput, importMode)
+    } catch (parseError) {
+      console.error('[MultiImport] Parse error:', parseError)
+      setParseError(`Import parsing failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
+      return
+    }
     
-    if (!result.success || result.entries.length === 0) {
-      setParseError(result.error || 'No entries found')
+    // Step 2: Check if parsing succeeded
+    if (!result.success) {
+      const errorMsg = result.error || 'No entries found in import'
+      console.warn('[MultiImport] Parse failed:', errorMsg, { warnings: result.warnings })
+      setParseError(errorMsg)
+      setParseWarnings(result.warnings)
+      return
+    }
+    
+    if (result.entries.length === 0) {
+      console.warn('[MultiImport] No entries detected', { detectedFormat: result.detectedFormat, warnings: result.warnings })
+      setParseError('No entries detected in import. Check that your content has recognizable entry fields (title, content, etc.).')
       setParseWarnings(result.warnings)
       return
     }
     
     setParseWarnings(result.warnings)
     
-    // Create a draft for each parsed entry
-    const newDraftIds: string[] = []
+    // Step 3: Check draft registry capacity BEFORE attempting to create
+    const currentDraftCount = draftRegistry.draftCount
+    const maxDrafts = 10 // REGISTRY_LIMITS.MAX_DRAFTS
+    const availableSlots = maxDrafts - currentDraftCount
     
-    for (const fields of result.entries) {
-      // Match journals/collections to IDs
-      const journalIds = matchJournals(fields.journals || [], availableJournals)
-      const collectionIds = matchCollections(fields.collections || [], availableCollections)
-      
-      const draftId = draftRegistry.createDraft({
-        title: fields.title || '',
-        excerpt: fields.excerpt || '',
-        coverImageUrl: fields.coverImageUrl || '',
-        coverImageAlt: fields.coverImageAlt || '',
-        content: fields.content || null,
-        status: (fields.status as any) || 'draft',
-        selectedJournals: journalIds,
-        selectedCollections: collectionIds
-      }, 'import')
-      
-      if (draftId) {
-        newDraftIds.push(draftId)
-      }
-    }
-    
-    if (newDraftIds.length === 0) {
-      setParseError('Failed to create drafts')
+    if (availableSlots <= 0) {
+      console.warn('[MultiImport] Registry full', { currentDraftCount, maxDrafts })
+      setParseError(`Draft registry is full (${currentDraftCount}/${maxDrafts}). Please save or discard existing drafts before importing more.`)
       return
     }
     
+    if (result.entries.length > availableSlots) {
+      console.warn('[MultiImport] Not enough slots', { entries: result.entries.length, availableSlots })
+      setParseError(`Import has ${result.entries.length} entries but only ${availableSlots} draft slots available. Please save or discard existing drafts first.`)
+      return
+    }
+    
+    // Step 4: Create a draft for each parsed entry
+    const newDraftIds: string[] = []
+    const failedEntries: { index: number; title: string; reason: string }[] = []
+    
+    for (let i = 0; i < result.entries.length; i++) {
+      const fields = result.entries[i]
+      const entryTitle = fields.title || `Entry ${i + 1}`
+      
+      try {
+        // Match journals/collections to IDs
+        const journalIds = matchJournals(fields.journals || [], availableJournals)
+        const collectionIds = matchCollections(fields.collections || [], availableCollections)
+        
+        const draftId = draftRegistry.createDraft({
+          title: fields.title || '',
+          excerpt: fields.excerpt || '',
+          coverImageUrl: fields.coverImageUrl || '',
+          coverImageAlt: fields.coverImageAlt || '',
+          content: fields.content || null,
+          status: (fields.status as any) || 'draft',
+          selectedJournals: journalIds,
+          selectedCollections: collectionIds
+        }, 'import')
+        
+        if (draftId) {
+          newDraftIds.push(draftId)
+        } else {
+          // createDraft returned null - likely hit MAX_DRAFTS
+          failedEntries.push({ index: i, title: entryTitle, reason: 'Draft limit reached' })
+          console.warn(`[MultiImport] Failed to create draft for entry ${i + 1}:`, entryTitle)
+        }
+      } catch (draftError) {
+        console.error(`[MultiImport] Error creating draft for entry ${i + 1}:`, draftError)
+        failedEntries.push({ 
+          index: i, 
+          title: entryTitle, 
+          reason: draftError instanceof Error ? draftError.message : 'Unknown error' 
+        })
+      }
+    }
+    
+    // Step 5: Handle results
+    if (newDraftIds.length === 0) {
+      // All entries failed
+      let errorMsg = 'Could not create drafts. '
+      if (failedEntries.length > 0) {
+        errorMsg += `Failed entries: ${failedEntries.map(e => `"${e.title}" (${e.reason})`).join(', ')}`
+      } else {
+        errorMsg += 'Draft registry may be unavailable or full.'
+      }
+      console.error('[MultiImport] All drafts failed:', { failedEntries })
+      setParseError(errorMsg)
+      return
+    }
+    
+    // Partial success - show warning but proceed
+    if (failedEntries.length > 0) {
+      const warnMsg = `${failedEntries.length} of ${result.entries.length} entries could not be added: ${failedEntries.map(e => e.title).join(', ')}`
+      console.warn('[MultiImport] Partial success:', warnMsg)
+      setParseWarnings(prev => [...prev, warnMsg])
+    }
+    
+    console.log(`[MultiImport] Successfully created ${newDraftIds.length} drafts`)
     setImportedDraftIds(newDraftIds)
     setSelectedDraftIds(new Set(newDraftIds))
     setActiveDraftId(newDraftIds[0])
