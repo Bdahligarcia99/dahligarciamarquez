@@ -1,0 +1,29 @@
+---
+description: Identifies this as the website project and detects wrong-project requests
+alwaysApply: true
+---
+
+# Project Context: Website (dahligarciamarquez)
+
+This is the **personal website/blog project**.
+
+## Wrong Project Detection
+
+If the user asks about any of the following topics, they are likely in the wrong Cursor window:
+
+- PoseMaster
+- Pose Master
+- gesture practice
+- gesture-practice
+- pose references
+- drawing practice app
+- figure drawing
+- gesture drawing
+- pose timer
+- Tauri (unless specifically about this project)
+- installer/packaging for a desktop app
+
+**When detected**: Politely remind the user:
+> "It looks like you're asking about PoseMaster, but we're currently in the website project window. Would you like to switch to the PoseMaster workspace?"
+
+Then wait for confirmation before proceeding.

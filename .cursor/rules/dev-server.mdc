@@ -1,0 +1,20 @@
+---
+description: Dev server management - do not start unless explicitly requested
+alwaysApply: true
+---
+
+# Dev Server Rule
+
+**Do NOT start the development server** (e.g., `npm run dev`, `npm start`, `vite`, etc.) unless the user explicitly asks for it.
+
+When making code changes:
+- Edit files as needed
+- Run tests if requested
+- Check for linter errors
+- But do NOT automatically start or restart the dev server
+
+Only start the dev server when the user says something like:
+- "Start the dev server"
+- "Run the app"
+- "Start the server"
+- "npm run dev"

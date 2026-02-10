@@ -1,6 +1,6 @@
 // Post Editor Component
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabaseAdminGet, supabaseAdminPost, supabaseAdminPatch } from '../../lib/api'
 import { useAuth } from '../../hooks/useAuth'
 import RichTextEditor, { RichTextEditorRef } from '../editor/RichTextEditor'
@@ -120,9 +120,13 @@ interface PostEditorProps {
 export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const { id: routePostId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, profile } = useAuth()
   const postId = routePostId
   const editorRef = useRef<RichTextEditorRef>(null)
+  
+  // Track if we returned from Curator with assignment changes
+  const [assignmentsChangedInCurator, setAssignmentsChangedInCurator] = useState(false)
   
   // Check for initial draft BEFORE state initializes (for returning from Curator)
   const initialDraftRef = useRef<DraftState | null>(getInitialDraft(routePostId))
@@ -724,6 +728,8 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         setError(null)
         // Clear any saved draft since we've successfully saved
         clearDraftState()
+        // Clear the "assignments changed" indicator
+        setAssignmentsChangedInCurator(false)
         // Show success message briefly
         setSuccessMessage('Post saved successfully!')
         setTimeout(() => setSuccessMessage(null), 3000)
@@ -1359,7 +1365,18 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const navigateToCurator = () => {
     saveDraftState()
     navigate('/dashboard/posts', { 
-      state: { fromEditor: true, returnToPostId: postId } 
+      state: { 
+        fromEditor: true, 
+        returnToPostId: postId,
+        // Pass entry info for Assignment Queue
+        entryIsSaved: !!postId,
+        entryTitle: title || 'Untitled',
+        entryStatus: status,
+        entryCoverUrl: coverImageUrl,
+        // Pass current assignments so Curator can show them
+        currentJournals: selectedJournals,
+        currentCollections: selectedCollections
+      } 
     })
   }
 
@@ -1379,6 +1396,19 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       fetchPostCuratorAssignments(postId)
     }
   }, [postId])
+  
+  // Handle returning from Curator with assignment changes
+  useEffect(() => {
+    if (location.state?.fromCurator) {
+      if (location.state.assignmentsChanged && postId) {
+        // Refresh assignments from database since they were changed in Curator
+        setAssignmentsChangedInCurator(true)
+        fetchPostCuratorAssignments(postId)
+      }
+      // Clear the location state
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state, postId])
 
   if (loading) {
     return (
@@ -1780,6 +1810,27 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
               </span>
             )}
           </div>
+          
+          {/* Indicator when assignments changed in Curator */}
+          {assignmentsChangedInCurator && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs text-amber-700">
+                Assignments updated in Curator. Save your entry to keep changes.
+              </span>
+              <button
+                type="button"
+                onClick={() => setAssignmentsChangedInCurator(false)}
+                className="ml-auto text-amber-600 hover:text-amber-800"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
 
           {/* Journals Section */}
           <div className="border border-gray-200 rounded-lg p-3">

@@ -16,6 +16,8 @@ const PostsPage = () => {
   // Contextual navigation: track if we came from the Entry Editor
   const [cameFromEditor, setCameFromEditor] = useState(false)
   const [returnToPostId, setReturnToPostId] = useState(null)
+  const [editorEntryInfo, setEditorEntryInfo] = useState(null) // { isSaved, title, status, coverUrl, journals, collections }
+  const [editorEntryAssignmentsChanged, setEditorEntryAssignmentsChanged] = useState(false)
   
   const [activeTab, setActiveTab] = useState('editor')
   const [posts, setPosts] = useState([])
@@ -85,11 +87,39 @@ const PostsPage = () => {
       setReturnToPostId(location.state.returnToPostId || null)
       setActiveTab('curator')
       
+      // Store entry info from Editor
+      const entryInfo = {
+        isSaved: location.state.entryIsSaved,
+        title: location.state.entryTitle || 'Untitled',
+        status: location.state.entryStatus || 'draft',
+        coverUrl: location.state.entryCoverUrl || null,
+        journals: location.state.currentJournals || [],
+        collections: location.state.currentCollections || []
+      }
+      setEditorEntryInfo(entryInfo)
+      
+      // If entry is saved, we'll add it to assignment queue after posts load
+      // This is handled in a separate effect below
+      
       // Clear the location state to prevent re-triggering on navigation within page
       // This uses replaceState to avoid adding to history
       window.history.replaceState({}, document.title)
     }
   }, [location.state])
+
+  // Add saved entry from Editor to Assignment Queue once posts are loaded
+  useEffect(() => {
+    if (cameFromEditor && editorEntryInfo?.isSaved && returnToPostId && posts.length > 0) {
+      // Find the entry in posts
+      const entryFromEditor = posts.find(p => p.id === returnToPostId)
+      if (entryFromEditor && !assignmentRowEntries.some(e => e.id === returnToPostId)) {
+        // Add to assignment queue
+        setAssignmentRowEntries([entryFromEditor])
+        // Pre-select the journal/collection if entry already has assignments
+        // This will be handled by the user in the Assignment Queue UI
+      }
+    }
+  }, [cameFromEditor, editorEntryInfo, returnToPostId, posts])
 
   useEffect(() => {
     // Client-side filtering and sorting
@@ -845,34 +875,67 @@ const PostsPage = () => {
       {activeTab === 'curator' && (
         <div className="w-full space-y-6">
           
-          {/* Back to Editor Button - only shown when navigated from Editor */}
+          {/* Back to Editor Banner - only shown when navigated from Editor */}
           {cameFromEditor && (
-            <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-4 py-3">
-              <div className="flex items-center gap-2 text-purple-700">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm">
-                  You're viewing the Curator from the Entry Editor.
-                  {returnToPostId && ' Changes here will be reflected in your entry.'}
-                </span>
+            <div className="space-y-3">
+              {/* Main info banner */}
+              <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-4 py-3">
+                <div className="flex items-center gap-2 text-purple-700">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm">
+                    You're viewing the Curator from the Entry Editor.
+                    {editorEntryInfo?.isSaved 
+                      ? ' Your entry is in the Assignment Queue below.'
+                      : ''}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setCameFromEditor(false)
+                    setEditorEntryInfo(null)
+                    if (returnToPostId) {
+                      navigate(`/dashboard/posts/${returnToPostId}/edit`, {
+                        state: { 
+                          fromCurator: true,
+                          assignmentsChanged: editorEntryAssignmentsChanged
+                        }
+                      })
+                    } else {
+                      navigate('/dashboard/posts/new', {
+                        state: { fromCurator: true }
+                      })
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                  </svg>
+                  Back to Editor
+                  {editorEntryAssignmentsChanged && (
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                  )}
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setCameFromEditor(false)
-                  if (returnToPostId) {
-                    navigate(`/dashboard/posts/${returnToPostId}/edit`)
-                  } else {
-                    navigate('/dashboard/posts/new')
-                  }
-                }}
-                className="px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
-                </svg>
-                Back to Editor
-              </button>
+              
+              {/* Unsaved entry warning */}
+              {editorEntryInfo && !editorEntryInfo.isSaved && (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      Save your entry to add it to the Assignment Queue
+                    </p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Your entry "{editorEntryInfo.title}" hasn't been saved yet. Save it first, then return here to assign journals and collections.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           
@@ -1321,6 +1384,14 @@ const PostsPage = () => {
                         } catch (err) {
                           console.error('Error assigning entry:', err)
                           errorCount++
+                        }
+                      }
+                      
+                      // Track if the editor entry's assignments changed
+                      if (cameFromEditor && returnToPostId) {
+                        const editorEntryWasAssigned = assignmentRowEntries.some(e => e.id === returnToPostId)
+                        if (editorEntryWasAssigned && successCount > 0) {
+                          setEditorEntryAssignmentsChanged(true)
                         }
                       }
                       
