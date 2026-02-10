@@ -73,8 +73,9 @@ export const ENTRY_FIELD_DEFINITIONS: FieldDefinition[] = [
     field: 'content',
     type: 'html',
     required: false,
-    description: 'Entry body content as HTML',
-    jsonKeys: ['content', 'body', 'html', 'text', 'content_html', 'content_rich', 'markdown'],
+    description: 'Entry body content (TipTap JSON or HTML)',
+    // Phase 3.1: Added rich content keys - content as {json, html} is preferred
+    jsonKeys: ['content', 'body', 'html', 'text', 'content_html', 'content_rich', 'contentRich', 'contentJson', 'markdown'],
     htmlMarker: 'content'
   },
   {

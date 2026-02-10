@@ -4,6 +4,10 @@
  * Parses JSON or HTML content and maps to Entry Editor fields.
  * Fully compatible with Export Template output (JSON + HTML).
  * 
+ * MULTI-ENTRY SUPPORT (Phase 3):
+ * - JSON: Accepts single object, array of objects, or { entries: [...] }
+ * - HTML: Splits by <article data-entry> or <!-- ENTRY_START --> delimiters
+ * 
  * JSON IMPORT:
  * - Accepts JSON objects with keys matching ENTRY_FIELD_DEFINITIONS
  * - Ignores meta/documentation keys (__meta, __notes, etc.)
@@ -25,6 +29,11 @@ import {
   isIgnoredJsonKey,
   type EntryStatus
 } from './entryFieldDefinitions'
+import {
+  normalizeImportedContent,
+  isValidTipTapJson,
+  type ConversionResult
+} from './tiptapConversion'
 
 export type ImportMode = 'auto' | 'json' | 'html'
 
@@ -218,24 +227,65 @@ function mapJsonToFields(
     }
   }
   
-  // Map content/body
-  const contentValue = findValue(['content', 'body', 'html', 'text', 'content_html', 'content_rich', 'markdown'])
-  if (contentValue !== undefined) {
+  // Map content/body - Phase 3.1: Ensure TipTap JSON is always populated
+  // Priority order for JSON content:
+  // 1. content_rich (direct TipTap JSON)
+  // 2. contentJson (alternative key)
+  // 3. content.json (nested)
+  // 4. content (if it's a TipTap doc)
+  // 5. content/body/html/text as HTML string
+  
+  // First, check for explicit TipTap JSON
+  const contentRichValue = findValue(['content_rich', 'contentJson', 'contentRich'])
+  const contentValue = findValue(['content', 'body', 'html', 'text', 'content_html', 'markdown'])
+  const contentHtmlValue = findValue(['content_html', 'contentHtml'])
+  
+  let finalContent: { json: any; html: string } | undefined
+  let contentWarning: string | undefined
+  
+  if (contentRichValue !== undefined || contentValue !== undefined) {
     detected.push('content')
-    if (shouldWrite('content', contentValue)) {
-      if (typeof contentValue === 'string') {
-        // Treat string content as HTML (sanitize it)
-        const sanitized = sanitizeHtml(contentValue)
-        result.content = { json: null, html: sanitized }
-      } else if (typeof contentValue === 'object') {
-        // Could be TipTap JSON format or a complex object
-        if (contentValue.type === 'doc' || contentValue.content) {
-          // Looks like TipTap JSON format
-          result.content = { json: contentValue, html: '' }
+    
+    if (shouldWrite('content', contentRichValue || contentValue)) {
+      // Case 1: Direct TipTap JSON provided via content_rich/contentJson
+      if (contentRichValue && typeof contentRichValue === 'object' && isValidTipTapJson(contentRichValue)) {
+        // Authoritative TipTap JSON - use directly
+        const html = contentHtmlValue || data.content_html || data.contentHtml || ''
+        finalContent = { json: contentRichValue, html: typeof html === 'string' ? sanitizeHtml(html) : '' }
+      }
+      // Case 2: content is an object with json property
+      else if (contentValue && typeof contentValue === 'object' && !Array.isArray(contentValue)) {
+        if (contentValue.json && isValidTipTapJson(contentValue.json)) {
+          // Has valid TipTap JSON
+          finalContent = {
+            json: contentValue.json,
+            html: contentValue.html ? sanitizeHtml(contentValue.html) : ''
+          }
+        } else if (contentValue.type === 'doc') {
+          // contentValue IS the TipTap doc
+          const html = contentHtmlValue || ''
+          finalContent = {
+            json: contentValue,
+            html: typeof html === 'string' ? sanitizeHtml(html) : ''
+          }
         } else if (contentValue.html) {
-          // Object with html property
-          result.content = { json: contentValue.json || null, html: sanitizeHtml(contentValue.html) }
+          // Only HTML in object - convert to TipTap JSON
+          const conversionResult = normalizeImportedContent(sanitizeHtml(contentValue.html))
+          finalContent = conversionResult.content
+          contentWarning = conversionResult.warning
         }
+      }
+      // Case 3: String content - treat as HTML and convert
+      else if (typeof contentValue === 'string' || typeof contentRichValue === 'string') {
+        const htmlString = typeof contentValue === 'string' ? contentValue : String(contentRichValue)
+        const sanitized = sanitizeHtml(htmlString)
+        const conversionResult = normalizeImportedContent(sanitized)
+        finalContent = conversionResult.content
+        contentWarning = conversionResult.warning
+      }
+      
+      if (finalContent) {
+        result.content = finalContent
       }
     } else {
       skipped.push('content')
@@ -383,10 +433,12 @@ function parseHtmlWithMarkers(doc: Document): {
         break
         
       case 'content':
-        // Get the inner HTML of the content marker, sanitized
+        // Get the inner HTML of the content marker, sanitized and converted to TipTap JSON
         const contentHtml = el.innerHTML?.trim()
         if (contentHtml) {
-          result.content = { json: null, html: sanitizeHtml(contentHtml) }
+          const sanitized = sanitizeHtml(contentHtml)
+          const conversionResult = normalizeImportedContent(sanitized)
+          result.content = conversionResult.content
           detected.push('content')
         }
         break
@@ -489,10 +541,12 @@ function parseHtmlWithHeuristics(doc: Document): {
     }
   }
   
-  // Remaining body becomes content
+  // Remaining body becomes content - convert to TipTap JSON
   const bodyHtml = workDoc.body.innerHTML.trim()
   if (bodyHtml) {
-    result.content = { json: null, html: sanitizeHtml(bodyHtml) }
+    const sanitized = sanitizeHtml(bodyHtml)
+    const conversionResult = normalizeImportedContent(sanitized)
+    result.content = conversionResult.content
     detected.push('content')
   }
   
@@ -726,4 +780,203 @@ export function getDetailedFieldsSummary(
   })
   
   return { applied, skipped }
+}
+
+// ============================================================
+// MULTI-ENTRY PARSING (Phase 3)
+// ============================================================
+
+export interface MultiParseResult {
+  success: boolean
+  entries: ParsedEntryFields[]
+  detectedFormat: 'json' | 'html' | null
+  isMultiple: boolean
+  warnings: string[]
+  error?: string
+}
+
+/**
+ * Split HTML content by entry delimiters
+ * Supports:
+ * - <article data-entry>...</article> blocks
+ * - <!-- ENTRY_START --> ... <!-- ENTRY_END --> blocks
+ */
+function splitHtmlByEntryDelimiters(html: string): { segments: string[]; hasDelimiters: boolean } {
+  // Try article[data-entry] first
+  const articlePattern = /<article[^>]*data-entry[^>]*>([\s\S]*?)<\/article>/gi
+  const articleMatches = [...html.matchAll(articlePattern)]
+  
+  if (articleMatches.length > 1) {
+    return {
+      segments: articleMatches.map(m => m[1] || m[0]),
+      hasDelimiters: true
+    }
+  }
+  
+  // Try ENTRY_START/ENTRY_END comments
+  const commentPattern = /<!--\s*ENTRY_START\s*-->([\s\S]*?)<!--\s*ENTRY_END\s*-->/gi
+  const commentMatches = [...html.matchAll(commentPattern)]
+  
+  if (commentMatches.length > 1) {
+    return {
+      segments: commentMatches.map(m => m[1] || m[0]),
+      hasDelimiters: true
+    }
+  }
+  
+  // No multi-entry delimiters found
+  return { segments: [html], hasDelimiters: false }
+}
+
+/**
+ * Extract array of entry objects from JSON data
+ * Supports:
+ * - Single object: { title: "..." }
+ * - Array of objects: [{ title: "..." }, { title: "..." }]
+ * - Wrapper object: { entries: [...] }
+ */
+function extractJsonEntryArray(data: any): { items: any[]; isMultiple: boolean } {
+  // Check if it's an array
+  if (Array.isArray(data)) {
+    return { items: data, isMultiple: data.length > 1 }
+  }
+  
+  // Check if it has an entries wrapper
+  if (data && typeof data === 'object' && Array.isArray(data.entries)) {
+    return { items: data.entries, isMultiple: data.entries.length > 1 }
+  }
+  
+  // Check for items wrapper (alternative)
+  if (data && typeof data === 'object' && Array.isArray(data.items)) {
+    return { items: data.items, isMultiple: data.items.length > 1 }
+  }
+  
+  // Single object
+  if (data && typeof data === 'object') {
+    return { items: [data], isMultiple: false }
+  }
+  
+  return { items: [], isMultiple: false }
+}
+
+/**
+ * Parse content that may contain multiple entries
+ * Returns an array of ParsedEntryFields, one per detected entry
+ */
+export function parseMultipleEntries(
+  input: string,
+  mode: ImportMode,
+  overwrite: boolean = true  // Default to overwrite since these are new entries
+): MultiParseResult {
+  const warnings: string[] = []
+  
+  if (!input || !input.trim()) {
+    return {
+      success: false,
+      entries: [],
+      detectedFormat: null,
+      isMultiple: false,
+      warnings: [],
+      error: 'No content to import'
+    }
+  }
+  
+  const trimmedInput = input.trim()
+  let detectedFormat: 'json' | 'html' | null = null
+  let entries: ParsedEntryFields[] = []
+  let isMultiple = false
+  
+  // Try JSON first (if mode allows)
+  if (mode === 'json' || mode === 'auto') {
+    const jsonResult = tryParseJson(trimmedInput)
+    
+    if (jsonResult.success) {
+      detectedFormat = 'json'
+      const { items, isMultiple: jsonMultiple } = extractJsonEntryArray(jsonResult.data)
+      isMultiple = jsonMultiple
+      
+      // Parse each item
+      for (const item of items) {
+        if (item && typeof item === 'object') {
+          const mapResult = mapJsonToFields(item, overwrite, {})
+          if (Object.keys(mapResult.fields).length > 0) {
+            entries.push(mapResult.fields)
+          }
+          
+          // Collect warnings for first item only (to avoid noise)
+          if (entries.length === 1) {
+            const ignoredKeys = Object.keys(item).filter(isIgnoredJsonKey)
+            if (ignoredKeys.length > 0) {
+              warnings.push(`Ignored documentation keys: ${ignoredKeys.join(', ')}`)
+            }
+          }
+        }
+      }
+      
+      if (entries.length === 0) {
+        warnings.push('No valid entries found in JSON')
+      }
+    } else if (mode === 'json') {
+      return {
+        success: false,
+        entries: [],
+        detectedFormat: null,
+        isMultiple: false,
+        warnings: [],
+        error: `JSON parsing failed: ${jsonResult.error}`
+      }
+    }
+  }
+  
+  // Try HTML if JSON didn't work
+  if ((mode === 'html' || mode === 'auto') && !detectedFormat) {
+    if (mode === 'html' || looksLikeHtml(trimmedInput)) {
+      detectedFormat = 'html'
+      
+      // Check for multi-entry delimiters
+      const { segments, hasDelimiters } = splitHtmlByEntryDelimiters(trimmedInput)
+      isMultiple = hasDelimiters && segments.length > 1
+      
+      // Parse each segment
+      for (const segment of segments) {
+        const htmlResult = parseHtmlToFields(segment, overwrite, {})
+        if (Object.keys(htmlResult.fields).length > 0) {
+          entries.push(htmlResult.fields)
+        }
+      }
+      
+      if (entries.length === 0) {
+        warnings.push('No valid entries found in HTML')
+      }
+    } else if (mode === 'auto') {
+      return {
+        success: false,
+        entries: [],
+        detectedFormat: null,
+        isMultiple: false,
+        warnings: [],
+        error: 'Could not detect format. Input does not appear to be valid JSON or HTML.'
+      }
+    }
+  }
+  
+  if (!detectedFormat) {
+    return {
+      success: false,
+      entries: [],
+      detectedFormat: null,
+      isMultiple: false,
+      warnings: [],
+      error: 'Could not parse input in the specified format.'
+    }
+  }
+  
+  return {
+    success: entries.length > 0,
+    entries,
+    detectedFormat,
+    isMultiple,
+    warnings,
+    error: entries.length === 0 ? 'No mappable entries found' : undefined
+  }
 }

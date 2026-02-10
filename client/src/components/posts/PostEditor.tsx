@@ -1,5 +1,5 @@
 // Post Editor Component
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabaseAdminGet, supabaseAdminPost, supabaseAdminPatch } from '../../lib/api'
 import { useAuth } from '../../hooks/useAuth'
@@ -7,9 +7,11 @@ import RichTextEditor, { RichTextEditorRef } from '../editor/RichTextEditor'
 import { uploadImage, UploadError } from '../../utils/uploadImage'
 import { validateImageUrl, extractImageUrlsFromHtml } from '../../utils/imageValidation'
 import { generateCoverImageAlt } from '../../utils/altTextGenerator'
-import { parseImportContent, getFieldsSummary, ImportMode, ParsedEntryFields } from '../../utils/importParser'
+import { parseImportContent, parseMultipleEntries, getFieldsSummary, ImportMode, ParsedEntryFields } from '../../utils/importParser'
+import MultiImportModal from './MultiImportModal'
 import { generateTemplate, TemplateFormat, getFieldDescriptions } from '../../utils/templateGenerator'
 import { getSupabaseClient } from '../../lib/supabase'
+import { useDraftRegistrySafe } from '../../context/DraftRegistryContext'
 import ImageManagementPanel from '../editor/ImageManagementPanel'
 import CompressionControls from '../editor/CompressionControls'
 import SmartTooltip from '../editor/SmartTooltip'
@@ -115,9 +117,17 @@ interface PostEditorProps {
   postId?: string
   onSave?: (post: any) => void
   onCancel?: () => void
+  /**
+   * Phase 2: Optional Draft Registry integration.
+   * When provided, PostEditor reads/writes to the Draft Registry instead of
+   * using local useState + legacy sessionStorage draft.
+   * 
+   * If not provided, behavior is identical to before (Legacy Mode).
+   */
+  useDraftId?: string
 }
 
-export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
+export default function PostEditor({ onSave, onCancel, useDraftId }: PostEditorProps) {
   const { id: routePostId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -125,28 +135,155 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const postId = routePostId
   const editorRef = useRef<RichTextEditorRef>(null)
   
+  // ============================================================
+  // DRAFT REGISTRY INTEGRATION (Phase 2)
+  // ============================================================
+  
+  // Determine mode: Registry Mode if useDraftId provided, else Legacy Mode
+  const isRegistryMode = !!useDraftId
+  const draftRegistry = useDraftRegistrySafe()
+  
+  // Get registry draft (only in registry mode)
+  const registryDraft = isRegistryMode && draftRegistry ? draftRegistry.getDraft(useDraftId) : null
+  
+  // Track if we've seeded the registry draft from server fetch (to avoid double-fetch)
+  const hasSeededRegistryDraft = useRef(false)
+  
+  // ============================================================
+  // LEGACY MODE: Initial draft from sessionStorage
+  // ============================================================
+  
+  // Check for initial draft BEFORE state initializes (for returning from Curator)
+  // Only used in Legacy Mode
+  const initialDraftRef = useRef<DraftState | null>(
+    isRegistryMode ? null : getInitialDraft(routePostId)
+  )
+  const initialDraft = initialDraftRef.current
+  
   // Track if we returned from Curator with assignment changes
   const [assignmentsChangedInCurator, setAssignmentsChangedInCurator] = useState(false)
   
-  // Check for initial draft BEFORE state initializes (for returning from Curator)
-  const initialDraftRef = useRef<DraftState | null>(getInitialDraft(routePostId))
-  const initialDraft = initialDraftRef.current
+  // ============================================================
+  // INITIALIZE STATE
+  // In Registry Mode: from registry draft
+  // In Legacy Mode: from sessionStorage draft or defaults
+  // ============================================================
   
-  // Initialize state from draft if available, otherwise use defaults
-  const [title, setTitle] = useState(initialDraft?.title ?? '')
-  const [content, setContent] = useState<{ json: any; html: string } | null>(initialDraft?.content ?? null)
-  const [excerpt, setExcerpt] = useState(initialDraft?.excerpt ?? '')
-  const [coverImageUrl, setCoverImageUrl] = useState(initialDraft?.coverImageUrl ?? '')
-  const [coverImageAlt, setCoverImageAlt] = useState(initialDraft?.coverImageAlt ?? '')
-  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>(initialDraft?.status ?? 'draft')
+  const getInitialValue = <T,>(
+    registryValue: T | undefined,
+    legacyValue: T | undefined,
+    defaultValue: T
+  ): T => {
+    if (isRegistryMode && registryValue !== undefined) {
+      return registryValue
+    }
+    return legacyValue ?? defaultValue
+  }
+  
+  // Initialize state from appropriate source
+  const [title, setTitleLocal] = useState(
+    getInitialValue(registryDraft?.title, initialDraft?.title, '')
+  )
+  const [content, setContentLocal] = useState<{ json: any; html: string } | null>(
+    getInitialValue(registryDraft?.content, initialDraft?.content, null)
+  )
+  const [excerpt, setExcerptLocal] = useState(
+    getInitialValue(registryDraft?.excerpt, initialDraft?.excerpt, '')
+  )
+  const [coverImageUrl, setCoverImageUrlLocal] = useState(
+    getInitialValue(registryDraft?.coverImageUrl, initialDraft?.coverImageUrl, '')
+  )
+  const [coverImageAlt, setCoverImageAltLocal] = useState(
+    getInitialValue(registryDraft?.coverImageAlt, initialDraft?.coverImageAlt, '')
+  )
+  const [status, setStatusLocal] = useState<'draft' | 'published' | 'archived'>(
+    getInitialValue(
+      registryDraft?.status as 'draft' | 'published' | 'archived' | undefined,
+      initialDraft?.status,
+      'draft'
+    )
+  )
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [availableLabels, setAvailableLabels] = useState<Label[]>([])
   
   // Curator state (new labeling system)
   const [availableJournals, setAvailableJournals] = useState<JournalForPicker[]>([])
-  const [selectedJournals, setSelectedJournals] = useState<string[]>(initialDraft?.selectedJournals ?? [])
+  const [selectedJournals, setSelectedJournalsLocal] = useState<string[]>(
+    getInitialValue(registryDraft?.selectedJournals, initialDraft?.selectedJournals, [])
+  )
   const [availableCollections, setAvailableCollections] = useState<CollectionForPicker[]>([])
-  const [selectedCollections, setSelectedCollections] = useState<string[]>(initialDraft?.selectedCollections ?? [])
+  const [selectedCollections, setSelectedCollectionsLocal] = useState<string[]>(
+    getInitialValue(registryDraft?.selectedCollections, initialDraft?.selectedCollections, [])
+  )
+  
+  // ============================================================
+  // REGISTRY MODE: Wrapper setters that also update registry
+  // ============================================================
+  
+  const updateRegistryField = useCallback((field: string, value: any) => {
+    if (isRegistryMode && draftRegistry && useDraftId) {
+      draftRegistry.updateDraft(useDraftId, { [field]: value })
+    }
+  }, [isRegistryMode, draftRegistry, useDraftId])
+  
+  // Wrapped setters that update both local state and registry (in registry mode)
+  const setTitle = useCallback((value: string | ((prev: string) => string)) => {
+    setTitleLocal(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value
+      updateRegistryField('title', newValue)
+      return newValue
+    })
+  }, [updateRegistryField])
+  
+  const setContent = useCallback((value: { json: any; html: string } | null) => {
+    setContentLocal(value)
+    updateRegistryField('content', value)
+  }, [updateRegistryField])
+  
+  const setExcerpt = useCallback((value: string | ((prev: string) => string)) => {
+    setExcerptLocal(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value
+      updateRegistryField('excerpt', newValue)
+      return newValue
+    })
+  }, [updateRegistryField])
+  
+  const setCoverImageUrl = useCallback((value: string | ((prev: string) => string)) => {
+    setCoverImageUrlLocal(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value
+      updateRegistryField('coverImageUrl', newValue)
+      return newValue
+    })
+  }, [updateRegistryField])
+  
+  const setCoverImageAlt = useCallback((value: string | ((prev: string) => string)) => {
+    setCoverImageAltLocal(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value
+      updateRegistryField('coverImageAlt', newValue)
+      return newValue
+    })
+  }, [updateRegistryField])
+  
+  const setStatus = useCallback((value: 'draft' | 'published' | 'archived') => {
+    setStatusLocal(value)
+    updateRegistryField('status', value)
+  }, [updateRegistryField])
+  
+  const setSelectedJournals = useCallback((value: string[] | ((prev: string[]) => string[])) => {
+    setSelectedJournalsLocal(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value
+      updateRegistryField('selectedJournals', newValue)
+      return newValue
+    })
+  }, [updateRegistryField])
+  
+  const setSelectedCollections = useCallback((value: string[] | ((prev: string[]) => string[])) => {
+    setSelectedCollectionsLocal(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value
+      updateRegistryField('selectedCollections', newValue)
+      return newValue
+    })
+  }, [updateRegistryField])
   const [curatorLoading, setCuratorLoading] = useState(false)
   
   // Inline creation state
@@ -184,6 +321,9 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   const [importOverwrite, setImportOverwrite] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importPreview, setImportPreview] = useState<{ fields: ParsedEntryFields; summary: string[] } | null>(null)
+  
+  // Multi-import modal state (Phase 3)
+  const [showMultiImportModal, setShowMultiImportModal] = useState(false)
   
   // Export Template modal states
   const [showTemplateModal, setShowTemplateModal] = useState(false)
@@ -622,6 +762,15 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
       setCoverImageAlt(cover_image_alt || '')
       setStatus(status)
       setSelectedLabels(Array.isArray(post_labels) ? post_labels.map((pl: any) => pl?.labels?.id).filter(Boolean) : [])
+      
+      // Registry Mode: mark that we've seeded from server and store the postId
+      if (isRegistryMode && draftRegistry && useDraftId && postId) {
+        hasSeededRegistryDraft.current = true
+        // The wrapped setters above have already updated draft fields
+        // Ensure postId is also tracked in the registry (markSaved stores postId)
+        // We call markSaved here since this is an edit of an existing post
+        draftRegistry.markSaved(useDraftId, postId)
+      }
     } catch (error) {
       console.error('Error fetching post:', error)
       
@@ -726,6 +875,12 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
         // Edit existing post
         savedPost = await supabaseAdminPatch(`/api/posts/${postId}`, postData)
         setError(null)
+        
+        // Registry Mode: mark saved to clear dirty flag
+        if (isRegistryMode && draftRegistry && useDraftId) {
+          draftRegistry.markSaved(useDraftId, postId)
+        }
+        
         // Clear any saved draft since we've successfully saved
         clearDraftState()
         // Clear the "assignments changed" indicator
@@ -763,6 +918,11 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             } catch (collectionError) {
               console.error('Error adding to collection:', collectionError)
             }
+          }
+          
+          // Registry Mode: mark saved with new postId
+          if (isRegistryMode && draftRegistry && useDraftId) {
+            draftRegistry.markSaved(useDraftId, savedPost.id)
           }
         }
         
@@ -1063,6 +1223,17 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     setImportError(null)
     setImportPreview(null)
     
+    // Phase 3: First check if this is multi-entry content
+    const multiResult = parseMultipleEntries(importInput, importMode)
+    
+    if (multiResult.success && multiResult.isMultiple) {
+      // Multiple entries detected - switch to multi-import modal
+      setShowImportModal(false)
+      setShowMultiImportModal(true)
+      return
+    }
+    
+    // Single entry: continue with existing flow
     // Get current field values for overwrite logic
     const currentFields: ParsedEntryFields = {
       title: title || undefined,
@@ -1136,11 +1307,11 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     }
     if (fields.content !== undefined) {
       setContent(fields.content)
-      // If we have HTML content, also update the editor
-      if (fields.content.html && editorRef.current?.editor) {
-        editorRef.current.editor.commands.setContent(fields.content.html)
-      } else if (fields.content.json && editorRef.current?.editor) {
+      // Update the editor - prioritize JSON (TipTap native) over HTML
+      if (fields.content.json && editorRef.current?.editor) {
         editorRef.current.editor.commands.setContent(fields.content.json)
+      } else if (fields.content.html && editorRef.current?.editor) {
+        editorRef.current.editor.commands.setContent(fields.content.html)
       }
     }
     if (fields.status !== undefined) {
@@ -1331,7 +1502,15 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   }
 
   // Save draft state to sessionStorage before navigating to Curator
+  // In Registry Mode: skip sessionStorage (registry persists automatically)
   const saveDraftState = () => {
+    if (isRegistryMode) {
+      // Registry mode: draft is already persisted via registry
+      // Just ensure latest state is synced (should already be via wrapped setters)
+      return
+    }
+    
+    // Legacy mode: save to sessionStorage
     const draftState: DraftState = {
       title,
       excerpt,
@@ -1348,7 +1527,11 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   }
 
   // Clear draft from sessionStorage after it's been used for initial state
+  // In Registry Mode: no-op (we don't use legacy sessionStorage)
   const clearRestoredDraft = (): boolean => {
+    if (isRegistryMode) {
+      return false // No legacy draft to clear
+    }
     if (initialDraftRef.current) {
       sessionStorage.removeItem(DRAFT_STORAGE_KEY)
       return true
@@ -1357,7 +1540,13 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
   }
 
   // Clear draft state (call when saving or leaving without intent to return)
+  // In Registry Mode: clear dirty flag instead of removing (keep draft for review workflows)
   const clearDraftState = () => {
+    if (isRegistryMode && draftRegistry && useDraftId) {
+      draftRegistry.clearDirty(useDraftId)
+      return
+    }
+    // Legacy mode: remove from sessionStorage
     sessionStorage.removeItem(DRAFT_STORAGE_KEY)
   }
 
@@ -1384,18 +1573,25 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
     fetchLabels()
     fetchCuratorData()
     
-    // Check if draft was restored via initial state
+    // Check if draft was restored via initial state (Legacy Mode only)
     const restoredFromDraft = clearRestoredDraft()
     
-    if (postId && !restoredFromDraft) {
-      // Only fetch from server if we didn't restore from draft
+    // Registry Mode: check if draft already has content
+    const registryHasContent = isRegistryMode && registryDraft && (
+      registryDraft.title || registryDraft.content
+    )
+    
+    if (postId && !restoredFromDraft && !registryHasContent) {
+      // Need to fetch from server
+      // In Registry Mode, fetchPost will seed the registry draft
       fetchPost()
       fetchPostCuratorAssignments(postId)
-    } else if (postId && restoredFromDraft) {
-      // Still fetch curator assignments even if we restored draft
+    } else if (postId && (restoredFromDraft || registryHasContent)) {
+      // Draft was restored (legacy) or registry already has content
+      // Still fetch curator assignments to ensure they're up to date
       fetchPostCuratorAssignments(postId)
     }
-  }, [postId])
+  }, [postId, isRegistryMode])
   
   // Handle returning from Curator with assignment changes
   useEffect(() => {
@@ -2313,6 +2509,10 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                   coverImageUrl, cover, image, content, body, html, text, status, published
                 </p>
                 <p className="text-xs text-blue-700">
+                  <strong>Rich content:</strong> content_rich, contentJson (TipTap JSON) - authoritative if provided.
+                  HTML-only content is auto-converted to rich format.
+                </p>
+                <p className="text-xs text-blue-700">
                   <strong>Organization:</strong> journals, journal, categories → Journals; 
                   collections, collection, tags, labels → Collections
                 </p>
@@ -2323,11 +2523,27 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
                 <p className="text-xs text-green-700 mt-1">
                   <strong>Auto-create:</strong> Non-existing journals/collections will be created automatically.
                 </p>
+                <p className="text-xs text-purple-700 mt-1">
+                  <strong>Multi-import:</strong> If multiple entries detected (JSON array or HTML delimiters), opens review queue.
+                </p>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false)
+                  setShowMultiImportModal(true)
+                }}
+                disabled={!importInput.trim()}
+                className="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Open multi-import review queue"
+              >
+                Multi-Import →
+              </button>
+              <div className="flex gap-3">
               <button
                 type="button"
                 onClick={handleImportClose}
@@ -2343,10 +2559,37 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
               >
                 Apply Import
               </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Multi-Import Modal (Phase 3) */}
+      <MultiImportModal
+        isOpen={showMultiImportModal}
+        onClose={() => {
+          setShowMultiImportModal(false)
+          setImportInput('')
+        }}
+        onSaveSuccess={(postId) => {
+          // Optional: could navigate or refresh
+          console.log('Multi-import saved post:', postId)
+        }}
+        availableJournals={availableJournals.map(j => ({
+          journal_id: j.journal_id,
+          journal_name: j.journal_name,
+          journal_slug: j.journal_slug
+        }))}
+        availableCollections={availableCollections.map(c => ({
+          collection_id: c.collection_id,
+          collection_name: c.collection_name,
+          collection_slug: c.collection_slug
+        }))}
+        initialInput={importInput}
+        initialMode={importMode}
+        autoParseOnOpen={true}
+      />
 
       {/* Export Template Modal */}
       {showTemplateModal && (
@@ -2372,30 +2615,56 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
             {/* Modal Body */}
             <div className="px-6 py-4 flex-1 overflow-y-auto">
               {/* Format selector */}
-              <div className="flex items-center gap-4 mb-4">
-                <label className="text-sm font-medium text-gray-700">Format:</label>
-                <div className="flex gap-2">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Format:</label>
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => handleTemplateFormatChange('json')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors text-left ${
                       templateFormat === 'json'
                         ? 'bg-blue-50 border-blue-300 text-blue-700'
                         : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    JSON
+                    <span className="block font-medium">JSON (Single)</span>
+                    <span className="block text-xs opacity-75">Full rich content</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTemplateFormatChange('json-multi')}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors text-left ${
+                      templateFormat === 'json-multi'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="block font-medium">JSON (Multi)</span>
+                    <span className="block text-xs opacity-75">Multiple entries</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleTemplateFormatChange('html')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors text-left ${
                       templateFormat === 'html'
                         ? 'bg-blue-50 border-blue-300 text-blue-700'
                         : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    HTML
+                    <span className="block font-medium">HTML (Single)</span>
+                    <span className="block text-xs opacity-75">Auto-converted on import</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTemplateFormatChange('html-multi')}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors text-left ${
+                      templateFormat === 'html-multi'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="block font-medium">HTML (Multi)</span>
+                    <span className="block text-xs opacity-75">Multiple article blocks</span>
                   </button>
                 </div>
               </div>
@@ -2459,17 +2728,29 @@ export default function PostEditor({ onSave, onCancel }: PostEditorProps) {
 
               {/* Format-specific notes */}
               <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                {templateFormat === 'json' ? (
+                {templateFormat === 'json' && (
                   <p className="text-xs text-gray-600">
-                    <strong>JSON Note:</strong> The <code className="bg-gray-200 px-1 rounded">__meta</code> section 
-                    is for documentation only and will be ignored during import. Fill in the actual field values 
-                    and use the Import feature to load your entry.
+                    <strong>JSON (Single):</strong> Includes TipTap rich content in <code className="bg-gray-200 px-1 rounded">content.json</code> so 
+                    imported entries can be saved immediately. The <code className="bg-gray-200 px-1 rounded">__meta</code> section 
+                    is documentation only and will be ignored during import.
                   </p>
-                ) : (
+                )}
+                {templateFormat === 'json-multi' && (
                   <p className="text-xs text-gray-600">
-                    <strong>HTML Note:</strong> Fields are marked with <code className="bg-gray-200 px-1 rounded">data-entry-field</code> attributes 
-                    and HTML comments for easy identification. The importer extracts the first &lt;h1&gt; as title, 
-                    first &lt;img&gt; as cover, and remaining content as body.
+                    <strong>JSON (Multi):</strong> Uses <code className="bg-gray-200 px-1 rounded">entries: [...]</code> wrapper 
+                    for batch import. Each entry includes TipTap rich content. Opens the Multi-Import review queue on import.
+                  </p>
+                )}
+                {templateFormat === 'html' && (
+                  <p className="text-xs text-gray-600">
+                    <strong>HTML (Single):</strong> Wrapped in <code className="bg-gray-200 px-1 rounded">&lt;article data-entry&gt;</code> with 
+                    field markers. HTML content is auto-converted to rich format on import.
+                  </p>
+                )}
+                {templateFormat === 'html-multi' && (
+                  <p className="text-xs text-gray-600">
+                    <strong>HTML (Multi):</strong> Multiple <code className="bg-gray-200 px-1 rounded">&lt;article data-entry&gt;</code> blocks, 
+                    each imported as a separate entry. Opens the Multi-Import review queue on import.
                   </p>
                 )}
               </div>
