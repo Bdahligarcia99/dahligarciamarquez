@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 
 import { CompressionProvider } from './hooks/useCompressionSettings'
 import { NavbarProvider } from './context/NavbarContext'
+import { DraftRegistryProvider } from './context/DraftRegistryContext'
 import ConditionalAuthProvider from './components/ConditionalAuthProvider'
 import ComingSoonGuard from './components/ComingSoonGuard'
 import Posts from './features/posts/Posts'
@@ -131,11 +132,13 @@ function App() {
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ConditionalAuthProvider>
         <NavbarProvider>
-          <ComingSoonGuard>
-            <CompressionProvider>
-              <AppShell />
-            </CompressionProvider>
-          </ComingSoonGuard>
+          <DraftRegistryProvider>
+            <ComingSoonGuard>
+              <CompressionProvider>
+                <AppShell />
+              </CompressionProvider>
+            </ComingSoonGuard>
+          </DraftRegistryProvider>
         </NavbarProvider>
       </ConditionalAuthProvider>
     </Router>
